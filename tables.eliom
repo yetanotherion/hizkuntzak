@@ -5,7 +5,7 @@ let conjugate_nor_present param =
     | `Ni -> "naiz"
     | `Hi -> "haiz"
     | `Hura -> "da"
-    | `Gu -> "gira"
+    | `Gu -> "gara"
     | `Zu -> "zara"
     | `Zuek -> "zarete"
     | `Haiek -> "dira"

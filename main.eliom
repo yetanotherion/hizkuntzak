@@ -42,9 +42,8 @@ let create nor_input nork_input time_input output =
     output = Html5.To_dom.of_input output;
   }
 
-let get_input_text element = Js.to_string element##value
-
 let conjugate t =
+  let open Utils in
   let nor = get_input_text t.nor_input in
   let nork = get_input_text t.nork_input in
   let time_input = get_input_text t.time_input in
@@ -96,25 +95,14 @@ let on_any_input_changes t _ _ =
 
 }}
 
-
-let main_service =
-  Eliom_service.App.service ~path:[] ~get_params:Eliom_parameter.unit ()
-
 let () =
+  let () = Hizkuntzak_app.register ~service:Games.service Games.f in
+  let main_service =
+    Eliom_service.App.service ~path:[] ~get_params:Eliom_parameter.unit ()
+  in
   Hizkuntzak_app.register
     ~service:main_service
     (fun () () ->
-        let utf8_meta = meta ~a:[a_charset "utf8"] () in
-        let viewport_meta = meta ~a:[a_name "viewport";
-                                     a_content "width=device-width, initial-scale=1"] () in
-        let href_link = uri_of_string (fun () -> "http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css") in
-        let stylesheet = link ~rel:[`Stylesheet] ~href:href_link () in
-        let make_script x = script ~a:[a_src (uri_of_string (fun () -> x))] (pcdata "") in
-        let js_scripts = List.map make_script ["https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js";
-                                               "http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"] in
-        let h = [utf8_meta;
-                 viewport_meta;
-                 stylesheet] @ js_scripts in
         let nor_input = string_input ~input_type:`Text () in
         let nork_input = string_input ~input_type:`Text () in
         let time_input = string_input ~input_type:`Text () in
@@ -135,7 +123,7 @@ let () =
         (Eliom_tools.F.html
            ~title:"hizkuntzak"
            ~css:[["css";"hizkuntzak.css"]]
-           ~other_head:h
+           ~other_head:(Utils.create_bootstrap_head ())
            Html5.F.(body [
              h2 [pcdata "Welcome from Eliom's distillery!"];
              div [div [pcdata "nor"; nor_input];

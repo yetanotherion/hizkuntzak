@@ -1,3 +1,11 @@
 * {
     font-family: sans-serif;
 }
+
+div.hidden {
+ visibility: hidden;
+}
+
+input.hidden {
+ visibility: hidden;
+}
