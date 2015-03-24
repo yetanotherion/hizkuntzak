@@ -75,7 +75,7 @@ type score = {
 }
 
 let new_score nber_of_questions = {
-  start_time = 0.0;
+  start_time = Unix.gettimeofday ();
   nber_ok = 0;
   remaining_question = nber_of_questions;
   nber_of_questions = nber_of_questions;
@@ -89,7 +89,9 @@ let bad_answer s =
   s.remaining_question <- s.remaining_question - 1
 
 let score_to_string score =
-  Printf.sprintf "%d/%d on %f seconds" score.nber_ok score.nber_of_questions score.start_time
+  let stop_date = Unix.gettimeofday () in
+  let f = stop_date -. score.start_time in
+  Printf.sprintf "%d/%d on %.2f seconds" score.nber_ok score.nber_of_questions f
 
 type game = {
   mode: int;
@@ -157,7 +159,6 @@ let next_game t =
 let start_game t =
   let mode = int_of_string (Utils.get_input_text t.game_params.game_mode_input) in
   t.current_game <- Some (create_game mode)
-
 
 let display_result t score =
   let () = Html5.Manip.replaceChildren t.result_div [pcdata (score_to_string score)] in
