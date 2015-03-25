@@ -307,9 +307,6 @@ let list_to_select s l =
   let head = Option ([], s, Some (pcdata s), true)  in
   head, list
 
-let service =
-    Eliom_service.App.service ~path:["game"] ~get_params:Eliom_parameter.unit ()
-
 let game_mode_inputs () =
   let build_raw_select name default others =
     let h, l = list_to_select default others in
@@ -319,31 +316,31 @@ let game_mode_inputs () =
   build_raw_select "verb mode" "all" ["nor"; "nor/nork"],
   build_raw_select "time mode" "all" ["present"; "past"]
 
-let f =
-  (fun () () ->
-    let question_board = div [] in
-    let answer_input = string_input ~input_type:`Text () in
-    let nquestions_input, v_mode_input, t_mode_input = game_mode_inputs () in
-    let start_game_button = button ~a:[a_class ["btn"; "btn-sm"; "btn-primary"]] ~button_type:`Button [pcdata "Start"] in
-    let start_game_div = div [div [pcdata "how many questions would you like in that game ?"; nquestions_input];
-                              div [pcdata "in which mode would you like to conjugate the verbs?"; v_mode_input];
-                              div [pcdata "in which time would you like to conjugate the verbs?"; t_mode_input];
-                              div [start_game_button]] in
-    let restart_game_button = button ~a:[a_class ["btn"; "btn-sm"; "btn-success"]] ~button_type:`Button [pcdata "Restart"] in
-    let answer_output = div [] in
-    let result_div = div [] in
-    let game_ongoing_div = div ~a:[a_class ["hidden"]] [question_board; answer_input; answer_output; result_div; restart_game_button] in
-    let _ = {unit{
-      let open Game in
-      let game_mode = create_game_params %nquestions_input %v_mode_input %t_mode_input %start_game_button %restart_game_button  in
-      let t = create %question_board %answer_input %answer_output game_mode %start_game_div %game_ongoing_div %result_div in
-      setup t
-    }} in
-    let divs = div [start_game_div; game_ongoing_div;] in
-    let otherh = Utils.create_bootstrap_head () in
-    let b = Html5.F.(body [divs]) in
-    let res = Eliom_tools.F.html ~title:"game" ~css:[["css";"hizkuntzak.css"]]
-      ~other_head:otherh b in
-    Lwt.return res)
+let service unused unused_bis =
+  let question_board = div [] in
+  let answer_input = string_input ~input_type:`Text () in
+  let nquestions_input, v_mode_input, t_mode_input = game_mode_inputs () in
+  let start_game_button = button ~a:[a_class ["btn"; "btn-sm"; "btn-primary"]] ~button_type:`Button [pcdata "Start"] in
+  let start_game_div = div [div [pcdata "The first game consists at conjugating verbs:"];
+                            ul (List.map (fun (x, input) -> li [pcdata x; input]) [("How many questions would you like in that game ?", nquestions_input);
+                                                                                   ("In which mode would you like to conjugate the verbs?", v_mode_input);
+                                                                                   ("In which time would you like to conjugate the verbs?", t_mode_input)]);
+                            div [start_game_button]] in
+  let restart_game_button = button ~a:[a_class ["btn"; "btn-sm"; "btn-success"]] ~button_type:`Button [pcdata "Restart"] in
+  let answer_output = div [] in
+  let result_div = div [] in
+  let game_ongoing_div = div ~a:[a_class ["hidden"]] [question_board; answer_input; answer_output; result_div; restart_game_button] in
+  let _ = {unit{
+    let open Game in
+        let game_mode = create_game_params %nquestions_input %v_mode_input %t_mode_input %start_game_button %restart_game_button  in
+        let t = create %question_board %answer_input %answer_output game_mode %start_game_div %game_ongoing_div %result_div in
+        setup t
+  }} in
+  let divs = div [start_game_div; game_ongoing_div;] in
+  let otherh = Utils.create_bootstrap_head () in
+  let b = Html5.F.(body [divs]) in
+  let res = Eliom_tools.F.html ~title:"game" ~css:[["css";"hizkuntzak.css"]]
+    ~other_head:otherh b in
+  Lwt.return res
 
 }}
