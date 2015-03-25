@@ -108,7 +108,7 @@ let conjugate_nor_nork_past_haiek nork =
     | `Zuk -> "zenituen"
     | `Guk -> "genituen"
     | `Zuek -> "zenituzten"
-    | `Haiek -> "zituen"
+    | `Haiek -> "zituzten"
 
 let create_restricted_nor nor =
   match nor with
