@@ -26,7 +26,7 @@ module Hizkuntzak_app =
     end)
 
 let () =
-  let view = Hizkuntzak_app.register_service ["eus"] Eliom_parameter.unit Games.service in
+  let eus = Hizkuntzak_app.register_service ["eus"] Eliom_parameter.unit Eus.service in
   let main_service =
     Eliom_service.App.service ~path:[] ~get_params:Eliom_parameter.unit ()
   in
@@ -34,7 +34,7 @@ let () =
   Hizkuntzak_app.register
     ~service:main_service
     (fun () () ->
-      let links = ul [li ~a:[a_class ["active"]] [a ~service:view [pcdata "Games on basque language"] ()]] in
+      let links = ul [li ~a:[a_class ["active"]] [a ~service:eus [pcdata "Games on basque language"] ()]] in
       Lwt.return
         (Eliom_tools.F.html
            ~title:"hizkuntzak"
