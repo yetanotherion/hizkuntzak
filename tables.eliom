@@ -13,7 +13,7 @@
 (*  implied.  See the License for the specific language governing         *)
 (*  permissions and limitations under the License.                        *)
 (**************************************************************************)
-{client{
+{shared{
 
 let conjugate_nor_present param =
   match param with
