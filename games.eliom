@@ -72,6 +72,7 @@ module GameHtmlElements = struct
     result_div: ([> Html5_types.div ] as 'div) Eliom_content.Html5.D.elt;
     nquestions_input: ([> Html5_types.select ] as 'select) Eliom_content.Html5.D.elt;
     start_game_button: ([> Html5_types.button ] as 'button) Eliom_content.Html5.D.elt;
+    ok_game_button: ([> Html5_types.button ] as 'button) Eliom_content.Html5.D.elt;
     restart_game_button: ([> Html5_types.button ] as 'button) Eliom_content.Html5.D.elt;
     other_inputs: ([> Html5_types.select ] as 'select) Eliom_content.Html5.D.elt list;
   }
@@ -115,13 +116,15 @@ struct
   type inputs = {
     nb_questions_input: Dom_html.selectElement Js.t;
     start_game: Dom_html.buttonElement Js.t;
+    ok_game: Dom_html.buttonElement Js.t;
     restart_game: Dom_html.buttonElement Js.t;
     other_inputs: other_inputs;
   }
 
-  let create_inputs nb_questions_input start_button restart_button other_inputs = {
+  let create_inputs nb_questions_input start_button ok_button restart_button other_inputs = {
     nb_questions_input = nb_questions_input;
     start_game = start_button;
+    ok_game = ok_button;
     restart_game = restart_button;
     other_inputs = other_inputs;
   }
@@ -130,12 +133,14 @@ struct
     let nb_questions = int_of_string (Utils.get_input_text inputs.nb_questions_input) in
     nb_questions, Array.map (fun x -> Utils.get_input_text x) inputs.other_inputs
 
-  let setup_inputs t on_start_game_clicks on_restart_game_clicks =
+  let setup_inputs t on_start_game_clicks on_answer_input_changes on_restart_game_clicks =
     let open Lwt_js_events in
     async (fun () ->
       clicks t.start_game on_start_game_clicks);
     async (fun () ->
-      clicks t.restart_game on_restart_game_clicks)
+      clicks t.restart_game on_restart_game_clicks);
+    async (fun () ->
+      clicks t.ok_game on_answer_input_changes)
 
   type 'a t = {
     question_board: 'a Eliom_content.Html5.elt;
@@ -168,12 +173,16 @@ struct
     let () =
       match t.current_game with
         | None -> ()
-        | Some g -> t.current_question <- Some (GC.generate_question g)
+        | Some g -> begin
+          let () = t.answer_input##focus() in
+          t.current_question <- Some (GC.generate_question g)
+        end
     in
     let () = t.answer_input##value <- Js.string "" in
     display_current_mode t
 
   let start_game t =
+    let () = Utils.show_element t.game_params.ok_game in
     let nb_questions, others = get_input_params t.game_params in
     let () = t.current_game <- Some (GC.create others) in
     t.current_score <- Some (Score.create nb_questions)
@@ -181,6 +190,7 @@ struct
   let display_result t score =
     let () = Html5.Manip.replaceChildren t.result_div [pcdata (Score.to_string score)] in
     let () = Utils.hidde_element t.answer_input in
+    let () = Utils.hidde_element t.game_params.ok_game in
     Html5.Manip.replaceChildren t.question_board []
 
   let handle_answer t =
@@ -204,13 +214,16 @@ struct
     else next_game t
 
   let on_answer_input_changes t _ _ =
+    let message = Utils.get_input_text t.answer_input in
     let () =
-      if is_finished t then ()
-      else begin
-        match t.current_game with
-          | None -> ()
-          | Some game -> handle_answer t
-      end
+      if message = "" then ()
+      else
+        if is_finished t then ()
+        else begin
+          match t.current_game with
+            | None -> ()
+            | Some game -> handle_answer t
+        end
     in
     Lwt.return_unit
 
@@ -256,7 +269,7 @@ struct
     let open Lwt_js_events in
     async (fun () ->
       changes t.answer_input (on_answer_input_changes t));
-    setup_inputs t.game_params (on_start_game_clicks t) (on_restart_game_clicks t)
+    setup_inputs t.game_params (on_start_game_clicks t) (on_answer_input_changes t) (on_restart_game_clicks t)
 
   let create_and_setup
       qb
@@ -267,11 +280,13 @@ struct
       result_div
       nquestion_input
       start_game_button
+      ok_game_button
       restart_game_button
       other_inputs =
     let game_mode = create_inputs
       (Html5.To_dom.of_select nquestion_input)
       (Html5.To_dom.of_button start_game_button)
+      (Html5.To_dom.of_button ok_game_button)
       (Html5.To_dom.of_button restart_game_button)
       (Array.map Html5.To_dom.of_select other_inputs) in
     let t = create qb answer_input answer_output game_mode start_game_div game_ongoing_div result_div in
@@ -319,10 +334,11 @@ module MakeServer (GC:GameConf) = struct
                               ul (List.map (fun (x, input) -> li [pcdata x; input])
                                     (nquestions :: others));
                               div [start_game_button]] in
+    let ok_game_button = button ~a:[a_class ["btn"; "btn-sm"; "btn-danger"]] ~button_type:`Button [pcdata "Answer"] in
     let restart_game_button = button ~a:[a_class ["btn"; "btn-sm"; "btn-success"]] ~button_type:`Button [pcdata "Restart"] in
     let answer_output = div [] in
     let result_div = div [] in
-    let game_ongoing_div = div ~a:[a_class ["hidden"]] [question_board; answer_input; answer_output; result_div; restart_game_button] in
+    let game_ongoing_div = div ~a:[a_class ["hidden"]] [question_board; answer_input; answer_output; result_div; ok_game_button; restart_game_button] in
     let open GameHtmlElements in
     {question_board = question_board;
      answer_input = answer_input;
@@ -332,6 +348,7 @@ module MakeServer (GC:GameConf) = struct
      result_div = result_div;
      nquestions_input = nquestions_input;
      start_game_button = start_game_button;
+     ok_game_button = ok_game_button;
      restart_game_button = restart_game_button;
      other_inputs = other_inputs}
 

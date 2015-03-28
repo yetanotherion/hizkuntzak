@@ -9,3 +9,7 @@ div.hidden {
 input.hidden {
  visibility: hidden;
 }
+
+button.hidden {
+ visibility: hidden;
+}
