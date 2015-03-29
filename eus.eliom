@@ -170,7 +170,7 @@ let service unused unused_bis =
   let _ = {unit{
     (* we cannot use functors in {unit{ }} sections,
        at least I got a syntax error
-       so find that work around *)
+       so this work around was implemented *)
     let inputs = %inputs in
     let open Games.GameHtmlElements in
     let other_inputs = Array.of_list inputs.other_inputs in
