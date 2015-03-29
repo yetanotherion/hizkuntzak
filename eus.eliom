@@ -17,9 +17,6 @@
 open Eliom_lib
 open Eliom_content
 open Html5.D
-}}
-
-{shared{
 
 module RandomVerbs: sig
   val random_nor_verb: unit -> string
