@@ -157,8 +157,8 @@ end
 
 {client{
 module NorNorkClient = Games.MakeClient(NorNorNorkPastPresent)
-
 }}
+
 {server{
 module NorNorkServer = Games.MakeServer(NorNorNorkPastPresent)
 
