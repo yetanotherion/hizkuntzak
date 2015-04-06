@@ -42,17 +42,17 @@ module Geography = struct
 
   let to_english x =
     match x with
-      | `France -> "france"
-      | `Crimea -> "crimea"
-      | `Moscow -> "moscow"
-      | `Russia -> "russia"
+      | `France -> "France"
+      | `Crimea -> "Crimea"
+      | `Moscow -> "Moscow"
+      | `Russia -> "Russia"
 
   let to_russian x =
     match x with
-      | `France -> "франция"
-      | `Crimea -> "крым"
-      | `Moscow -> "москва"
-      | `Russia -> "россии"
+      | `France -> "Франция"
+      | `Crimea -> "Крым"
+      | `Moscow -> "Москва"
+      | `Russia -> "России"
 
 end
 
