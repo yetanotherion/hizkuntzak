@@ -52,7 +52,7 @@ module Geography = struct
       | `France -> "Франция"
       | `Crimea -> "Крым"
       | `Moscow -> "Москва"
-      | `Russia -> "России"
+      | `Russia -> "Россия"
 
 end
 
@@ -126,21 +126,21 @@ module Building = struct
 
   let to_russian x =
     match x with
-      | `Airport -> "азропорт"
+      | `Airport -> "аэропорт"
       | `Building -> "здание"
       | `University -> "университет"
 end
 
 module HouseAndFurniture = struct
-  type t = [`Cabinet
+  type t = [`Closet
            | `Desk
            | `Notebook
            | `Letter
            | `House]
-  let values = [`Cabinet; `Desk; `Notebook; `Letter; `House]
+  let values = [`Closet; `Desk; `Notebook; `Letter; `House]
   let to_english x =
     match x with
-      | `Cabinet -> "cabinet"
+      | `Closet -> "closet"
       | `Desk -> "desk"
       | `Notebook -> "notebook"
       | `Letter -> "letter"
@@ -148,9 +148,9 @@ module HouseAndFurniture = struct
 
   let to_russian x =
     match x with
-      | `Cabinet -> "шкаф"
+      | `Closet -> "шкаф"
       | `Desk -> "бюро"
-      | `Notebook -> "тетрадъ"
+      | `Notebook -> "тетрадь"
       | `Letter -> "письмо"
       | `House -> "дом"
 
@@ -182,7 +182,7 @@ module PeopleFunction = struct
 
   let to_russian x =
     match x with
-      | `Tourist -> "туристский"
+      | `Tourist -> "турист"
 
 end
 module Dictionary = struct
