@@ -72,7 +72,7 @@ module FoodAndDrink = struct
     match x with
       | `Beer -> "пиво"
       | `Wine -> "вино"
-      | `Kitchen -> "кухин"
+      | `Kitchen -> "кухня"
       | `CoffeeHouse -> "кафе"
 end
 
@@ -90,8 +90,8 @@ module Transport = struct
 
   let to_russian x =
     match x with
-      | `Tram -> "трамвае"
-      | `Car -> "автомобиле"
+      | `Tram -> "трамвай"
+      | `Car -> "автомобилъ"
       | `Taxi -> "такси"
 end
 
