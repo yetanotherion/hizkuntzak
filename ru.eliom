@@ -42,16 +42,18 @@ module Geography = struct
 end
 
 module Location = struct
-  type t = [ `Corner ]
-  let values = [`Corner]
+  type t = [ `Corner | `Floor ]
+  let values = [`Corner; `Floor]
 
   let to_english x =
     match x with
       | `Corner -> "corner"
+      | `Floor -> "floor"
 
   let to_russian x =
     match x with
       | `Corner -> "угол"
+      | `Floor -> "пол"
 end
 
 module FoodAndDrink = struct
@@ -96,37 +98,78 @@ module Transport = struct
 end
 
 module Building = struct
-  type t = [`University]
-  let values = [`University]
+  type t = [ `Airport
+           | `Building
+           | `University ]
+  let values = [`Airport; `Building; `University]
 
   let to_english x =
     match x with
+      | `Airport -> "airport"
+      | `Building -> "building"
       | `University -> "university"
 
   let to_russian x =
     match x with
+      | `Airport -> "азропорт"
+      | `Building -> "здание"
       | `University -> "университет"
 end
 
 module HouseAndFurniture = struct
   type t = [`Cabinet
            | `Desk
+           | `Notebook
+           | `Letter
            | `House]
-  let values = [`Cabinet; `Desk; `House]
+  let values = [`Cabinet; `Desk; `Notebook; `Letter; `House]
   let to_english x =
     match x with
       | `Cabinet -> "cabinet"
       | `Desk -> "desk"
+      | `Notebook -> "notebook"
+      | `Letter -> "letter"
       | `House -> "house"
 
   let to_russian x =
     match x with
       | `Cabinet -> "шкаф"
       | `Desk -> "бюро"
+      | `Notebook -> "тетрадъ"
+      | `Letter -> "письмо"
       | `House -> "дом"
 
 end
 
+module Nature = struct
+  type t = [`Garden | `Sea ]
+  let values = [ `Garden; `Sea]
+
+  let to_english x =
+    match x with
+      | `Garden -> "garden"
+      | `Sea -> "sea"
+
+  let to_russian x =
+    match x with
+      | `Garden -> "сад"
+      | `Sea -> "море"
+
+end
+
+module PeopleFunction = struct
+  type t = [`Tourist]
+  let values = [ `Tourist]
+
+  let to_english x =
+    match x with
+      | `Tourist -> "tourist"
+
+  let to_russian x =
+    match x with
+      | `Tourist -> "туристский"
+
+end
 module Dictionary = struct
   let title = "dictionary"
   let description = "Improve your dictionary"
@@ -143,7 +186,9 @@ module Dictionary = struct
                   | `FoodDrink of FoodAndDrink.t
                   | `Transport of Transport.t
                   | `Building of Building.t
-                  | `HouseFurniture of HouseAndFurniture.t]
+                  | `HouseFurniture of HouseAndFurniture.t
+                  | `Nature of Nature.t
+                  | `PeopleFunction of PeopleFunction.t ]
 
   let questions =
     (List.map (fun x -> `Greeting x) Greeting.values) @
@@ -152,7 +197,9 @@ module Dictionary = struct
       (List.map (fun x -> `FoodDrink x) FoodAndDrink.values) @
       (List.map (fun x -> `Transport x) Transport.values) @
       (List.map (fun x -> `Building x) Building.values) @
-      (List.map (fun x -> `HouseFurniture x) HouseAndFurniture.values)
+      (List.map (fun x -> `HouseFurniture x) HouseAndFurniture.values) @
+      (List.map (fun x -> `Nature x) Nature.values) @
+      (List.map (fun x -> `PeopleFunction x) PeopleFunction.values)
 
   type t = unit
   let generate_question () = Games.random_element questions
@@ -166,6 +213,8 @@ module Dictionary = struct
       | `Transport t -> Transport.to_english t
       | `Building b -> Building.to_english b
       | `HouseFurniture h -> HouseAndFurniture.to_english h
+      | `Nature n -> Nature.to_english n
+      | `PeopleFunction p -> PeopleFunction.to_english p
 
   let question_to_string q answero =
     let ps = Printf.sprintf in
@@ -183,6 +232,9 @@ module Dictionary = struct
       | `Transport t -> Transport.to_russian t
       | `Building b -> Building.to_russian b
       | `HouseFurniture h -> HouseAndFurniture.to_russian h
+      | `Nature n -> Nature.to_russian n
+      | `PeopleFunction p -> PeopleFunction.to_russian p
+
 end
 }}
 
