@@ -1,12 +1,23 @@
+(**************************************************************************)
+(*  Copyright 2014, Ion Alberdi <nolaridebi at gmail.com>                 *)
+(*                                                                        *)
+(*  Licensed under the Apache License, Version 2.0 (the "License");       *)
+(*  you may not use this file except in compliance with the License.      *)
+(*  You may obtain a copy of the License at                               *)
+(*                                                                        *)
+(*      http://www.apache.org/licenses/LICENSE-2.0                        *)
+(*                                                                        *)
+(*  Unless required by applicable law or agreed to in writing, software   *)
+(*  distributed under the License is distributed on an "AS IS" BASIS,     *)
+(*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or       *)
+(*  implied.  See the License for the specific language governing         *)
+(*  permissions and limitations under the License.                        *)
+(**************************************************************************)
 {shared{
 open Eliom_content
 }}
 {client{
-
-type point = {
-  x: float;
-  y: float;
-}
+open Animation
 
 type rect = {
   start_x: float;
@@ -29,6 +40,12 @@ type t = {
   zone: rect;
 }
 
+let get_context t = t.canvas##getContext (Dom_html._2d_)
+
+let reset t =
+  let ctx = get_context t in
+  ctx##clearRect(0.0, 0.0, t.zone.width, t.zone.height)
+
 let log s = Firebug.console##log(Js.string s)
 
 let range ?step:(s=1) start_idx end_idx =
@@ -50,9 +67,6 @@ let create height width canvas =
     canvas = dom_canvas;
   }
 
-let get_context t = t.canvas##getContext (Dom_html._2d_)
-
-
 let draw_line t origin dest =
   let ctx = get_context t in
   let () = ctx##beginPath() in
@@ -64,18 +78,12 @@ let draw_line t origin dest =
 let draw_horizontal_rects t bo x width height ylabels =
   let ctx = get_context t in
   (* let previousfillStyle = ctx##fillStyle in *)
-  let ps = Printf.sprintf in
   let f = match bo with
-    | None -> fun y -> begin
-      let () = log (ps "Writting rectangle x: %f y: %f width: %f height:%f" x y width height) in
-      ctx##clearRect(x, y, width, height)
-    end
+    | None -> fun y -> ctx##clearRect(x, y, width, height)
+
     | Some b ->
       let () = ctx##fillStyle <- Js.string b in
-      fun y -> begin
-        let () = log (ps "Writting rectangle x: %f y: %f width: %f height:%f" x y width height) in
-        ctx##fillRect(x, y, width, height)
-      end
+      fun y -> ctx##fillRect(x, y, width, height)
   in
   let () = List.iter f ylabels in
   (* let () = ctx##fillStyle <- previousfillStyle in *)
@@ -137,7 +145,7 @@ module Text = struct
        of the letter *)
     (message_x_length ctx message) <= rectangle.width
 
-  let write ctx t x y = ctx##fillText(Js.string t.text, x, y)
+  let write ctx t p = ctx##fillText(Js.string t.text, p.x, p.y)
 
   let get_x_axis axis_start axis_end location text_width =
     let half_of_text = text_width /. 2.0 in
@@ -171,7 +179,7 @@ module Text = struct
       | Some x -> x
 
 
-  let write_in_rectangle c rectangle t =
+  let get_position_in_rectangle c rectangle t =
     let () = set_police c t.size_in_pixel t.police in
     let x_start = rectangle.start_x in
     let x_end = rectangle.start_x +. rectangle.width in
@@ -181,8 +189,8 @@ module Text = struct
     let text_size_in_y = float_of_int t.size_in_pixel in
     let x = get_x_axis x_start x_end t.x_location text_size_in_x in
     let y = get_y_axis y_start y_end t.y_location text_size_in_y in
-    let () = log (Printf.sprintf "writting in rectangle %s x:%f y:%f" (rect_to_string rectangle) x y) in
-    write c t x y
+    {x=x;
+     y=y}
 end
 
 let split_rectangle rectangle ncolumns nlines =
@@ -200,57 +208,81 @@ let split_rectangle rectangle ncolumns nlines =
                            width=columns_width}) xidxl) yidxl
 
 
+module NorNork = struct
+  let nb_of_rectangles = 10
 
-let create_nor_nork_tabular ?style:(s="rgb(204, 204, 255)") t =
-  let nb_of_rectangles = 10 in
-  let one_rectangle_size = t.zone.height /. (float_of_int nb_of_rectangles) in
-  (* first we split the zone in t into two zones:
-     - 9 rectangles of size one_rectangle_size
-     - 1 rectangle of size one_rectangle_size * 2 in the end
-       (so that we can put the asterisk for haiek)
-   *)
-  let boundary_y_idx = nb_of_rectangles - 2 in
-  let zone_boundary = float_of_int (boundary_y_idx) in
-  let first_zone = create_rect 0.0 0.0 (one_rectangle_size *. zone_boundary) t.zone.width in
-  let second_zone = create_rect 0.0 (one_rectangle_size *. zone_boundary) (one_rectangle_size *. 2.0) t.zone.width in
-  (* we draw the rectangles *)
-  let () = alternate_horizontal_rectangles_in_rect_zone t first_zone boundary_y_idx in
-  let () = alternate_horizontal_rectangles_in_rect_zone ~start_with_bg:true t second_zone 1 in
-  (* and three horizontal lines as delimiter *)
-  let to_y_labels = rect_idx_to_y_label 0.0 one_rectangle_size in
-  let () = draw_horizontal_lines_in_rect_zone t t.zone (to_y_labels [0; 1; 11]) in
-  (* now lets write the text *)
-  let rectangles = split_rectangle t.zone 4 (nb_of_rectangles - 1) in
-  let () = log (Printf.sprintf "number_of_lines %d" (List.length rectangles)) in
-  let () = List.iter (fun l ->
-    let () = log (Printf.sprintf "line has %d elements" (List.length l)) in
-    List.iter (fun x -> log (rect_to_string x)) l)
-    rectangles
-  in
-  let cc x = (x, `Center) in
-  let cs x = (x, `Start) in
-  let ce x = (x, `End) in
+   type elt = {
+     position: point;
+     text: Text.t;
+     mutable next_position: point list;
+   }
 
-  let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORK"];
-              [cs "NI"; cs "NAU"; ce "T"; ce "NIK"];
-              [cs "HI"; cs "HAU"; ce "K/N"; ce "HIK"];
-              [cs "HURA"; cs "DU"; ce "-"; ce "HARK"];
-              [cs "GU"; cs "GAITU"; ce "GU"; ce "GUK"];
-              [cs "ZU"; cs "ZAITU"; ce "ZU"; ce "ZUK"];
-              [cs "ZUEK"; cs "ZAITUZTE"; ce "ZUE"; ce "ZUEK"];
-              [cs "HAIEK"; cs "DITU"; ce "(Z)* TE"; ce "HAIEK"];
-              [cs ""; cs ""; cs "*: NOR=GU,ZU,HAIEK"; cs ""]] in
+  let draw_tabular t =
+    let one_rectangle_size = t.zone.height /. (float_of_int nb_of_rectangles) in
+    (* first we split the zone in t into two zones:
+       - 9 rectangles of size one_rectangle_size
+       - 1 rectangle of size one_rectangle_size * 2 in the end
+         (so that we can put the asterisk for haiek)
+     *)
+    let boundary_y_idx = nb_of_rectangles - 2 in
+    let zone_boundary = float_of_int (boundary_y_idx) in
+    let first_zone = create_rect 0.0 0.0 (one_rectangle_size *. zone_boundary) t.zone.width in
+    let second_zone = create_rect 0.0 (one_rectangle_size *. zone_boundary) (one_rectangle_size *. 2.0) t.zone.width in
+    (* we draw the rectangles *)
+    let () = alternate_horizontal_rectangles_in_rect_zone t first_zone boundary_y_idx in
+    let () = alternate_horizontal_rectangles_in_rect_zone ~start_with_bg:true t second_zone 1 in
+    (* and three horizontal lines as delimiter *)
+    let to_y_labels = rect_idx_to_y_label 0.0 one_rectangle_size in
+    draw_horizontal_lines_in_rect_zone t t.zone (to_y_labels [0; 1; 11])
 
-  let ctx = get_context t in
-  let () = ctx##fillStyle <- Js.string "rgb(0, 0, 0)" in
-  let police_name = "serif" in
-  List.iter2 (fun line_rect line_elts ->
-    List.iter2 (fun rect (elt, loc) ->
-      let size = Text.size_text ctx police_name rect elt in
-      let () = log (Printf.sprintf "size: %dpx" size) in
-      let text = Text.create ~x_location:loc police_name size elt in
-      Text.write_in_rectangle ctx rect text) line_rect line_elts)
-    rectangles elts
+  let draw_text_element t text_element =
+    let position, next_position =
+      match text_element.next_position with
+        | [] -> text_element.position, []
+        | hd :: tl -> hd, tl
+    in
+    let () = text_element.next_position <- next_position in
+    Text.write (get_context t) text_element.text position
+
+  let draw_text t text_table =
+    let ctx = get_context t in
+    let () = ctx##fillStyle <- Js.string "rgb(0, 0, 0)" in
+    List.iter (fun l ->
+      List.iter (fun x -> draw_text_element t x) l)
+      text_table
+
+  let create ?police_name:(p="serif") t =
+    let rectangles = split_rectangle t.zone 4 (nb_of_rectangles - 1) in
+    let cs x = (x, `Start) in
+    let ce x = (x, `End) in
+
+    let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORK"];
+                [cs "NI"; cs "NAU"; ce "T"; ce "NIK"];
+                [cs "HI"; cs "HAU"; ce "K/N"; ce "HIK"];
+                [cs "HURA"; cs "DU"; ce "-"; ce "HARK"];
+                [cs "GU"; cs "GAITU"; ce "GU"; ce "GUK"];
+                [cs "ZU"; cs "ZAITU"; ce "ZU"; ce "ZUK"];
+                [cs "ZUEK"; cs "ZAITUZTE"; ce "ZUE"; ce "ZUEK"];
+                [cs "HAIEK"; cs "DITU"; ce "(Z)* TE"; ce "HAIEK"];
+                [cs ""; cs ""; cs "*: NOR=GU,ZU,HAIEK"; cs ""]] in
+
+    let ctx = get_context t in
+    List.map2 (fun line_rect line_elts ->
+      List.map2 (fun rect (elt, loc) ->
+        let size = Text.size_text ctx p rect elt in
+        let text = Text.create ~x_location:loc p size elt in
+        {position=Text.get_position_in_rectangle ctx rect text;
+         text=text;
+         next_position=[]})
+        line_rect line_elts)
+      rectangles elts
+
+  let draw t text =
+    let () = reset t in
+    let () = draw_tabular t in
+    draw_text t text
+
+end
 
 }}
 
@@ -263,17 +295,97 @@ let create_canvas_elt height width =
 
  }}
 {client{
-let init_client height width canvas_elt =
-  let t = create height width canvas_elt in
-  let () = create_nor_nork_tabular t in
+
+let compute_line_animation ?nb_of_steps:(ns=200) t table start ending =
+  let ctx = get_context t in
+  let middle = {x=t.zone.width /. 2.0;
+                y=t.zone.height /. 2.0} in
+  let get_elt_length ctx elt =
+    Text.message_x_length ctx elt.NorNork.text.Text.text
+  in
+  let start_length = get_elt_length ctx start in
+  let start_destination = {x=middle.x -. start_length;
+                         y=middle.y} in
+  let ending_destination = middle in
+  let _compute_move elt dst =
+    let src = elt.NorNork.position in
+    let line = Line.create src dst in
+    let start_x = src.x in
+    let x_step = (dst.x -. src.x) /. (float_of_int ns) in
+    let x_range = List.map (fun x -> start_x +. (float_of_int x) *. x_step) (range 0 ns) in
+    List.map (fun x -> {x=x;
+                        y=Line.y_axis line x}) x_range
+  in
+  let stay_after_last_move move =
+    let last = List.hd (List.rev move) in
+    move @ (List.fold_left (fun accum _ -> last :: accum) [] (range 0 ns))
+  in
+  let compute_move elt dst =
+    stay_after_last_move (_compute_move elt dst)
+  in
+  let () = start.NorNork.next_position <- compute_move start start_destination in
+  let () = ending.NorNork.next_position <- compute_move ending ending_destination in
   ()
+
+let compute_jump ?nb_of_steps:(ns=400) t table elt =
+  let src = elt.NorNork.position in
+  let min_jump = src.y -. (t.zone.height /. 10.0) in
+  let dest_y = float_of_int (Random.int (int_of_float min_jump)) in
+  let dest = {x=src.x;
+              y=dest_y} in
+  let v = SymVerticalJump.create src dest in
+  let compute_move () =
+    let ps = Printf.sprintf in
+    let one_end = SymVerticalJump.back_to_y0 v in
+    let number_of_jumps = 4 in
+    (* we want four jumps during the steps,
+       and time that goes linearly *)
+    let step_per_jump = ns / number_of_jumps in
+    let time_forward = one_end /. (float_of_int step_per_jump) in
+    let r =
+      List.map (fun t ->
+        let curr_t = (float_of_int t) *. time_forward in
+        let y = SymVerticalJump.compute_ordinate v curr_t in
+        {x=src.x;
+         y=y})
+        (range 0 step_per_jump)
+    in
+    List.fold_left (fun accum _ -> r @ accum) [] (range 0 number_of_jumps)
+  in
+  elt.NorNork.next_position <- compute_move ()
+
+let set_animation t table =
+  let nau = List.nth (List.nth table 1) 1 in
+  let zu = List.nth (List.nth table 5) 2 in
+  let () = compute_line_animation t table nau zu in
+  let ni = List.nth (List.nth table 1) 0 in
+  let zuk = List.nth (List.nth table 5) 3 in
+  let () = compute_jump t table ni in
+  let () = compute_jump t table zuk in
+  ()
+
+let init_client height width canvas_elt =
+  let () = Random.self_init () in
+  let t = create height width canvas_elt in
+  let table = NorNork.create t in
+  let () = set_animation t table in
+  t, table
+
+let refresh_ui t table =
+  while_lwt true do
+    lwt () = Lwt_js_events.request_animation_frame () in
+    let () = NorNork.draw t table in
+    Lwt.return_unit
+  done
+
 }}
 {server{
 let service unused unused_bis =
   let height, width = 300, 700 in
   let canvas_elt = create_canvas_elt height width in
   let _ = {unit{
-    init_client %height %width %canvas_elt
+    let t, table = init_client %height %width %canvas_elt in
+    Lwt.async (fun () -> refresh_ui t table)
   }}
   in
   let page =
