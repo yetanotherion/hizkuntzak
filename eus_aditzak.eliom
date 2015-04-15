@@ -294,7 +294,7 @@ let create_canvas_elt height width =
  }}
 {client{
 
-let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table start ending =
+let compute_line_animation ?nb_of_steps:(ns=100) wait_before_move t table start ending =
   let ctx = get_context t in
   let middle = {x=t.zone.width /. 2.0;
                 y=t.zone.height /. 2.0} in
@@ -363,7 +363,7 @@ let compute_jump ?nb_of_steps:(ns=200) ?max_jumps:(mj=10) t table elt dest =
 let set_animation t table =
   let nau = List.nth (List.nth table 1) 1 in
   let zu = List.nth (List.nth table 5) 2 in
-  let before_nb_steps = 200 in
+  let before_nb_steps = 100 in
   let () = compute_line_animation before_nb_steps t table nau zu in
   let ni = List.nth (List.nth table 1) 0 in
   let zuk = List.nth (List.nth table 5) 3 in
