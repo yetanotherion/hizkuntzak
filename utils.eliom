@@ -36,6 +36,8 @@ let create_bootstrap_head () =
 }}
 
 {client{
+  let log s = Firebug.console##log(Js.string s)
+
   let get_input_text element = Js.to_string element##value
 
   let hidde_element elt =

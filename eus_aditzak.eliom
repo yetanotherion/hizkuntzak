@@ -46,16 +46,6 @@ let reset t =
   let ctx = get_context t in
   ctx##clearRect(0.0, 0.0, t.zone.width, t.zone.height)
 
-let log s = Firebug.console##log(Js.string s)
-
-let range ?step:(s=1) start_idx end_idx =
-  (* range 0 3 == [0; 1; 2] *)
-  let rec _range cidx eidx accum =
-    if cidx + s >= eidx then List.rev (cidx :: accum)
-    else _range (cidx + s) eidx (cidx :: accum)
-  in
-  _range start_idx end_idx []
-
 let enumerate l =
   let _, r = List.fold_left (fun (curr_idx, res) elt -> (curr_idx + 1, (curr_idx, elt) :: res)) (0, []) l in
   List.rev r
@@ -134,6 +124,9 @@ module Text = struct
   let message_x_length ctx string =
     let m = ctx##measureText(Js.string string) in
     m##width
+
+  let message_length ctx t =
+    message_x_length ctx t.text
 
   let set_police ctx size_in_pixel police_name =
     let police = Printf.sprintf "%dpx %s" size_in_pixel police_name in
@@ -217,6 +210,11 @@ module NorNork = struct
      mutable next_position: point list;
    }
 
+  let end_of_text_position t elt =
+    let ctx = get_context t in
+    {x=elt.position.x +. (Text.message_length ctx elt.text);
+     y=elt.position.y}
+
   let draw_tabular t =
     let one_rectangle_size = t.zone.height /. (float_of_int nb_of_rectangles) in
     (* first we split the zone in t into two zones:
@@ -296,7 +294,7 @@ let create_canvas_elt height width =
  }}
 {client{
 
-let compute_line_animation ?nb_of_steps:(ns=200) t table start ending =
+let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table start ending =
   let ctx = get_context t in
   let middle = {x=t.zone.width /. 2.0;
                 y=t.zone.height /. 2.0} in
@@ -305,7 +303,7 @@ let compute_line_animation ?nb_of_steps:(ns=200) t table start ending =
   in
   let start_length = get_elt_length ctx start in
   let start_destination = {x=middle.x -. start_length;
-                         y=middle.y} in
+                           y=middle.y} in
   let ending_destination = middle in
   let _compute_move elt dst =
     let src = elt.NorNork.position in
@@ -316,52 +314,66 @@ let compute_line_animation ?nb_of_steps:(ns=200) t table start ending =
     List.map (fun x -> {x=x;
                         y=Line.y_axis line x}) x_range
   in
+  let repeat_move position ns =
+    List.fold_left (fun accum _ -> position :: accum) [] (range 0 ns)
+  in
   let stay_after_last_move move =
     let last = List.hd (List.rev move) in
-    move @ (List.fold_left (fun accum _ -> last :: accum) [] (range 0 ns))
+    move @ (repeat_move last ns)
   in
   let compute_move elt dst =
-    stay_after_last_move (_compute_move elt dst)
+    let start = repeat_move elt.NorNork.position wait_before_move in
+    stay_after_last_move (start @ (_compute_move elt dst))
   in
   let () = start.NorNork.next_position <- compute_move start start_destination in
   let () = ending.NorNork.next_position <- compute_move ending ending_destination in
   ()
 
-let compute_jump ?nb_of_steps:(ns=400) t table elt =
+let compute_one_rebound ?nb_of_steps:(ns=200) t table src dest =
+  let v = SymBasketball.create src dest in
+  let x_steps = (dest.x -. src.x) /. (float_of_int ns) in
+  let x = List.map (fun i -> src.x +. x_steps *. (float_of_int i)) (range 0 ns) in
+  List.map (fun x ->
+    {y=SymBasketball.compute_ordinate v x;
+     x=x}) x
+
+let compute_jump ?nb_of_steps:(ns=200) ?max_jumps:(mj=10) t table elt dest =
   let src = elt.NorNork.position in
-  let min_jump = src.y -. (t.zone.height /. 10.0) in
-  let dest_y = float_of_int (Random.int (int_of_float min_jump)) in
-  let dest = {x=src.x;
-              y=dest_y} in
-  let v = SymVerticalJump.create src dest in
-  let compute_move () =
-    let ps = Printf.sprintf in
-    let one_end = SymVerticalJump.back_to_y0 v in
-    let number_of_jumps = 4 in
-    (* we want four jumps during the steps,
-       and time that goes linearly *)
-    let step_per_jump = ns / number_of_jumps in
-    let time_forward = one_end /. (float_of_int step_per_jump) in
-    let r =
-      List.map (fun t ->
-        let curr_t = (float_of_int t) *. time_forward in
-        let y = SymVerticalJump.compute_ordinate v curr_t in
-        {x=src.x;
-         y=y})
-        (range 0 step_per_jump)
-    in
-    List.fold_left (fun accum _ -> r @ accum) [] (range 0 number_of_jumps)
+  let num_of_jumps = (Random.int (mj - 1) + 1) in
+  let step_for_everyone = ns / num_of_jumps in
+  let remaining_steps = ns - (step_for_everyone * num_of_jumps) in
+  let x_shift = (dest.x -. src.x) /. (float_of_int num_of_jumps) in
+  let res =
+    List.fold_left (fun accum i ->
+      let nb_of_steps = step_for_everyone in
+      let nb_of_steps =
+        if i == num_of_jumps - 1 then nb_of_steps + remaining_steps
+        else nb_of_steps
+      in
+      let dest = {x=src.x +. (float_of_int (i + 1)) *. x_shift;
+                  y=src.y} in
+      let src = {x=src.x +. (float_of_int i) *. x_shift;
+                 y=src.y}
+      in
+      let curr_jump = compute_one_rebound ~nb_of_steps:nb_of_steps t table src dest in
+      List.append accum curr_jump) [] (range 0 num_of_jumps)
   in
-  elt.NorNork.next_position <- compute_move ()
+  elt.NorNork.next_position <- res
 
 let set_animation t table =
   let nau = List.nth (List.nth table 1) 1 in
   let zu = List.nth (List.nth table 5) 2 in
-  let () = compute_line_animation t table nau zu in
+  let before_nb_steps = 200 in
+  let () = compute_line_animation before_nb_steps t table nau zu in
   let ni = List.nth (List.nth table 1) 0 in
   let zuk = List.nth (List.nth table 5) 3 in
-  let () = compute_jump t table ni in
-  let () = compute_jump t table zuk in
+  let ni_end = (NorNork.end_of_text_position t ni) in
+  let ni_length = ni_end.x -. ni.NorNork.position.x in
+  let () = compute_jump ~nb_of_steps:before_nb_steps
+                        t table ni {x=nau.NorNork.position.x -. ni_length;
+                                    y=nau.NorNork.position.y} in
+  let () = compute_jump ~nb_of_steps:before_nb_steps
+                        t table zuk (NorNork.end_of_text_position t zu) in
   ()
 
 let init_client height width canvas_elt =
