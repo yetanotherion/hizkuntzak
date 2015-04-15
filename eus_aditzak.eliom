@@ -294,7 +294,7 @@ let create_canvas_elt height width =
  }}
 {client{
 
-let compute_line_animation ?nb_of_steps:(ns=100) wait_before_move t table start ending =
+let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table start ending =
   let ctx = get_context t in
   let middle = {x=t.zone.width /. 2.0;
                 y=t.zone.height /. 2.0} in
