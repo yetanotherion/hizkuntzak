@@ -31,6 +31,28 @@ let range ?step:(s=1) start_idx end_idx =
   in
   _range start_idx end_idx []
 
+let enumerate l =
+  let _, r = List.fold_left (fun (curr_idx, res) elt -> (curr_idx + 1, (curr_idx, elt) :: res)) (0, []) l in
+  List.rev r
+
+let xrange src dst ns =
+  (* ns must be > 1.
+     returns x-axis coordinates
+     that go from src to dest
+     in ns steps, by ensuring that
+     - at step 0, we start at src.x
+     - at step ns - 1, we are at dst.x
+  *)
+  let () =
+    if ns < 2 then raise (Failure "xrange cannot work with ns<2")
+  in
+  let start_x = src.x in
+  let x_step = (dst.x -. src.x) /. (float_of_int ns) in
+  List.map (fun (i, x) ->
+    if i = (ns - 1) then dst.x
+    else start_x +. (float_of_int i) *. x_step)
+    (enumerate (range 0 ns))
+
 module Line = struct
   type t = {
     slope: float;

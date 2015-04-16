@@ -46,10 +46,6 @@ let reset t =
   let ctx = get_context t in
   ctx##clearRect(0.0, 0.0, t.zone.width, t.zone.height)
 
-let enumerate l =
-  let _, r = List.fold_left (fun (curr_idx, res) elt -> (curr_idx + 1, (curr_idx, elt) :: res)) (0, []) l in
-  List.rev r
-
 let create height width canvas =
   let dom_canvas = Html5.To_dom.of_canvas canvas in
   {
@@ -294,6 +290,9 @@ let create_canvas_elt height width =
  }}
 {client{
 
+let repeat_move position ns =
+  List.fold_left (fun accum _ -> position :: accum) [] (range 0 ns)
+
 let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table start ending =
   let ctx = get_context t in
   let middle = {x=t.zone.width /. 2.0;
@@ -308,14 +307,8 @@ let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table start 
   let _compute_move elt dst =
     let src = elt.NorNork.position in
     let line = Line.create src dst in
-    let start_x = src.x in
-    let x_step = (dst.x -. src.x) /. (float_of_int ns) in
-    let x_range = List.map (fun x -> start_x +. (float_of_int x) *. x_step) (range 0 ns) in
     List.map (fun x -> {x=x;
-                        y=Line.y_axis line x}) x_range
-  in
-  let repeat_move position ns =
-    List.fold_left (fun accum _ -> position :: accum) [] (range 0 ns)
+                        y=Line.y_axis line x}) (xrange src dst ns)
   in
   let stay_after_last_move move =
     let last = List.hd (List.rev move) in
@@ -331,48 +324,55 @@ let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table start 
 
 let compute_one_rebound ?nb_of_steps:(ns=200) t table src dest =
   let v = SymBasketball.create src dest in
-  let x_steps = (dest.x -. src.x) /. (float_of_int ns) in
-  let x = List.map (fun i -> src.x +. x_steps *. (float_of_int i)) (range 0 ns) in
   List.map (fun x ->
     {y=SymBasketball.compute_ordinate v x;
-     x=x}) x
+     x=x}) (xrange src dest ns)
 
 let compute_jump ?nb_of_steps:(ns=200) ?max_jumps:(mj=10) t table elt dest =
   let src = elt.NorNork.position in
-  let num_of_jumps = (Random.int (mj - 1) + 1) in
-  let step_for_everyone = ns / num_of_jumps in
-  let remaining_steps = ns - (step_for_everyone * num_of_jumps) in
-  let x_shift = (dest.x -. src.x) /. (float_of_int num_of_jumps) in
+  let num_of_jumps = (Random.int mj) + 1 in
   let res =
-    List.fold_left (fun accum i ->
+    let step_for_everyone = ns / num_of_jumps in
+    let remaining_steps = ns - step_for_everyone * num_of_jumps in
+    let x_range = xrange src dest (num_of_jumps + 1) in
+    let _, src_dest = List.fold_left
+      (fun (previous_dest, accum) dest ->
+        (dest, (previous_dest, dest) :: accum))
+      (List.hd x_range, []) (List.tl x_range)
+    in
+    let src_dest = enumerate (List.rev src_dest) in
+    let () = List.iter (fun (i, (s, d)) ->
+      let () = Utils.log (Printf.sprintf "i: %d src: %f dst_i: %f" i s d) in
+      ()) src_dest
+    in
+    List.fold_left (fun accum (i, (src_x, dest_x)) ->
       let nb_of_steps = step_for_everyone in
       let nb_of_steps =
         if i == num_of_jumps - 1 then nb_of_steps + remaining_steps
         else nb_of_steps
       in
-      let dest = {x=src.x +. (float_of_int (i + 1)) *. x_shift;
-                  y=src.y} in
-      let src = {x=src.x +. (float_of_int i) *. x_shift;
-                 y=src.y}
-      in
+      let src = {x=src_x;
+                 y=src.y} in
+      let dest = {x=dest_x;
+                  y=dest.y} in
       let curr_jump = compute_one_rebound ~nb_of_steps:nb_of_steps t table src dest in
-      List.append accum curr_jump) [] (range 0 num_of_jumps)
+      List.append accum curr_jump) [] src_dest
   in
   elt.NorNork.next_position <- res
 
 let set_animation t table =
   let nau = List.nth (List.nth table 1) 1 in
   let zu = List.nth (List.nth table 5) 2 in
-  let before_nb_steps = 100 in
-  let () = compute_line_animation before_nb_steps t table nau zu in
+  let steps_until_touching_verb_parts = 100 in
+  let () = compute_line_animation ~nb_of_steps:100 steps_until_touching_verb_parts t table nau zu in
   let ni = List.nth (List.nth table 1) 0 in
   let zuk = List.nth (List.nth table 5) 3 in
   let ni_end = (NorNork.end_of_text_position t ni) in
   let ni_length = ni_end.x -. ni.NorNork.position.x in
-  let () = compute_jump ~nb_of_steps:before_nb_steps
+  let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
                         t table ni {x=nau.NorNork.position.x -. ni_length;
                                     y=nau.NorNork.position.y} in
-  let () = compute_jump ~nb_of_steps:before_nb_steps
+  let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
                         t table zuk (NorNork.end_of_text_position t zu) in
   ()
 
