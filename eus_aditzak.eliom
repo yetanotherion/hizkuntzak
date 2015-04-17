@@ -341,10 +341,6 @@ let compute_jump ?nb_of_steps:(ns=200) ?max_jumps:(mj=10) t table elt dest =
       (List.hd x_range, []) (List.tl x_range)
     in
     let src_dest = enumerate (List.rev src_dest) in
-    let () = List.iter (fun (i, (s, d)) ->
-      let () = Utils.log (Printf.sprintf "i: %d src: %f dst_i: %f" i s d) in
-      ()) src_dest
-    in
     List.fold_left (fun accum (i, (src_x, dest_x)) ->
       let nb_of_steps = step_for_everyone in
       let nb_of_steps =
