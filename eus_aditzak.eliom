@@ -134,7 +134,9 @@ module Text = struct
        of the letter *)
     (message_x_length ctx message) <= rectangle.width
 
-  let write ctx t p = ctx##fillText(Js.string t.text, p.x, p.y)
+  let write ctx t p =
+    let () = set_police ctx t.size_in_pixel t.police in
+    ctx##fillText(Js.string t.text, p.x, p.y)
 
   let get_x_axis axis_start axis_end location text_width =
     let half_of_text = text_width /. 2.0 in
@@ -206,7 +208,11 @@ module NorNork = struct
      mutable next_position: point list;
    }
 
-  let end_of_text_position t elt =
+   let create_elt position text = {position=position;
+                                   text=text;
+                                   next_position=[]}
+
+   let end_of_text_position t elt =
     let ctx = get_context t in
     {x=elt.position.x +. (Text.message_length ctx elt.text);
      y=elt.position.y}
@@ -242,13 +248,15 @@ module NorNork = struct
     let ctx = get_context t in
     let () = ctx##fillStyle <- Js.string "rgb(0, 0, 0)" in
     List.iter (fun l ->
-      List.iter (fun x -> draw_text_element t x) l)
+      List.iter (fun l ->
+        List.iter (fun x -> draw_text_element t x) l) l)
       text_table
 
   let create ?police_name:(p="serif") t =
     let rectangles = split_rectangle t.zone 4 (nb_of_rectangles - 1) in
-    let cs x = (x, `Start) in
-    let ce x = (x, `End) in
+    let cs x = ([x], `Start) in
+    let ce x = ([x], `End) in
+    let ceL x = (x, `End) in
 
     let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORK"];
                 [cs "NI"; cs "NAU"; ce "T"; ce "NIK"];
@@ -257,17 +265,25 @@ module NorNork = struct
                 [cs "GU"; cs "GAITU"; ce "GU"; ce "GUK"];
                 [cs "ZU"; cs "ZAITU"; ce "ZU"; ce "ZUK"];
                 [cs "ZUEK"; cs "ZAITUZTE"; ce "ZUE"; ce "ZUEK"];
-                [cs "HAIEK"; cs "DITU"; ce "(Z)* TE"; ce "HAIEK"];
-                [cs ""; cs ""; cs "*: NOR=GU,ZU,HAIEK"; cs ""]] in
-
+                [cs "HAIEK"; cs "DITU"; ceL ["("; "Z"; ")*"; "TE"]; ce "HAIEK"];
+                [cs ""; cs ""; ceL ["*: NOR="; "GU"; ","; "ZU"; ","; "HAIEK"]; ce ""]] in
     let ctx = get_context t in
     List.map2 (fun line_rect line_elts ->
-      List.map2 (fun rect (elt, loc) ->
-        let size = Text.size_text ctx p rect elt in
-        let text = Text.create ~x_location:loc p size elt in
-        {position=Text.get_position_in_rectangle ctx rect text;
-         text=text;
-         next_position=[]})
+      List.map2 (fun rect locElts ->
+        let (elts, loc) = locElts in
+        let all_elt_string = List.fold_left (fun accum x -> accum ^ x) "" elts in
+        let size = Text.size_text ctx p rect all_elt_string in
+        let position = Text.get_position_in_rectangle ctx rect
+          (Text.create ~x_location:loc p size all_elt_string)
+        in
+        let _, all_elts = List.fold_left
+          (fun (current_position, accum) message ->
+            let curr_text = Text.create ~x_location:loc p size message in
+            let curr_elt = create_elt current_position curr_text in
+            let end_position = end_of_text_position t curr_elt in
+            (end_position, curr_elt :: accum)) (position, []) elts
+        in
+        List.rev all_elts)
         line_rect line_elts)
       rectangles elts
 
@@ -293,33 +309,39 @@ let create_canvas_elt height width =
 let repeat_move position ns =
   List.fold_left (fun accum _ -> position :: accum) [] (range 0 ns)
 
-let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table start ending =
+let compute_line_move ?nb_of_steps:(ns=200) src dst =
+  let line = Line.create src dst in
+  List.map (fun x -> {x=x;
+                      y=Line.y_axis line x}) (xrange src dst ns)
+
+let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table blocks =
   let ctx = get_context t in
   let middle = {x=t.zone.width /. 2.0;
                 y=t.zone.height /. 2.0} in
   let get_elt_length ctx elt =
     Text.message_x_length ctx elt.NorNork.text.Text.text
   in
+  let start = List.hd blocks in
   let start_length = get_elt_length ctx start in
   let start_destination = {x=middle.x -. start_length;
                            y=middle.y} in
-  let ending_destination = middle in
-  let _compute_move elt dst =
-    let src = elt.NorNork.position in
-    let line = Line.create src dst in
-    List.map (fun x -> {x=x;
-                        y=Line.y_axis line x}) (xrange src dst ns)
-  in
   let stay_after_last_move move =
     let last = List.hd (List.rev move) in
     move @ (repeat_move last ns)
   in
   let compute_move elt dst =
     let start = repeat_move elt.NorNork.position wait_before_move in
-    stay_after_last_move (start @ (_compute_move elt dst))
+    stay_after_last_move (start @ (compute_line_move elt.NorNork.position dst))
   in
   let () = start.NorNork.next_position <- compute_move start start_destination in
-  let () = ending.NorNork.next_position <- compute_move ending ending_destination in
+  let _, src_dest = List.fold_left (fun (previous_end, accum) elt ->
+    let next_dest = {x=previous_end.x +. (get_elt_length ctx elt);
+                     y=middle.y} in
+    (next_dest, (elt, compute_move elt previous_end) :: accum)) (middle, []) (List.tl blocks)
+  in
+  let src_dest = List.rev src_dest in
+  let () = List.iter (fun (elt, move) ->
+    elt.NorNork.next_position <- move) src_dest in
   ()
 
 let compute_one_rebound ?nb_of_steps:(ns=200) t table src dest =
@@ -356,13 +378,13 @@ let compute_jump ?nb_of_steps:(ns=200) ?max_jumps:(mj=10) t table elt dest =
   in
   elt.NorNork.next_position <- res
 
-let set_animation t table =
-  let nau = List.nth (List.nth table 1) 1 in
-  let zu = List.nth (List.nth table 5) 2 in
+let set_nau_zu_animation t table =
+  let nau = List.hd (List.nth (List.nth table 1) 1) in
+  let zu = List.hd (List.nth (List.nth table 5) 2) in
   let steps_until_touching_verb_parts = 100 in
-  let () = compute_line_animation ~nb_of_steps:100 steps_until_touching_verb_parts t table nau zu in
-  let ni = List.nth (List.nth table 1) 0 in
-  let zuk = List.nth (List.nth table 5) 3 in
+  let () = compute_line_animation ~nb_of_steps:100 steps_until_touching_verb_parts t table [nau; zu] in
+  let ni = List.hd (List.nth (List.nth table 1) 0) in
+  let zuk = List.hd (List.nth (List.nth table 5) 3) in
   let ni_end = (NorNork.end_of_text_position t ni) in
   let ni_length = ni_end.x -. ni.NorNork.position.x in
   let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
@@ -370,6 +392,28 @@ let set_animation t table =
                                     y=nau.NorNork.position.y} in
   let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
                         t table zuk (NorNork.end_of_text_position t zu) in
+  ()
+
+let set_animation t table =
+  let gaitu = List.hd (List.nth (List.nth table 4) 1) in
+  let te = List.nth (List.nth (List.nth table 7) 2) 3 in
+  let z = List.nth (List.nth (List.nth table 7) 2) 1 in
+  let steps_until_touching_verb_parts = 100 in
+  let () = compute_line_animation ~nb_of_steps:100 steps_until_touching_verb_parts t table [gaitu; z; te] in
+  let gu = List.hd (List.nth (List.nth table 4) 0) in
+  let haiek = List.hd (List.nth (List.nth table 7) 3) in
+  let gu_end = (NorNork.end_of_text_position t gu) in
+  let gu_length = gu_end.x -. gu.NorNork.position.x in
+  let gu_star = List.nth (List.nth (List.nth table 8) 2) 1 in
+  let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                        t table gu {x=gaitu.NorNork.position.x -. gu_length;
+                                    y=gaitu.NorNork.position.y} in
+  let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                        t table haiek (NorNork.end_of_text_position t te) in
+  let () = gu_star.NorNork.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
+    gu_star.NorNork.position
+    z.NorNork.position
+  in
   ()
 
 let init_client height width canvas_elt =
