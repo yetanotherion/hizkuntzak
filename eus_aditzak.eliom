@@ -134,6 +134,9 @@ module Text = struct
        of the letter *)
     (message_x_length ctx message) <= rectangle.width
 
+  let message_height t =
+    (float_of_int t.size_in_pixel) /. 2.0
+
   let write ctx t p =
     let () = set_police ctx t.size_in_pixel t.police in
     ctx##fillText(Js.string t.text, p.x, p.y)
@@ -412,7 +415,9 @@ let set_animation t table =
                         t table haiek (NorNork.end_of_text_position t te) in
   let () = gu_star.NorNork.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
     gu_star.NorNork.position
-    z.NorNork.position
+    {x=z.NorNork.position.x;
+     y=z.NorNork.position.y +. (Text.message_height gu_star.NorNork.text);
+    }
   in
   ()
 
