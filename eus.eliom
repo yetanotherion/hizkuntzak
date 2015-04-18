@@ -29,7 +29,7 @@ struct
   let random_nor_nork_verb () = Games.random_element transitive_verbs
 end
 
-module NorNorNorkPastPresent = struct
+module NorNorkPastPresentShared = struct
   type genre = [ `Male | `Female ]
   type nork = [ `Nik | `Hik of genre | `Hark | `Guk | `Zuk | `Zuek | `Haiek ]
   type nor = [ `Ni | `Hi | `Hura | `Gu | `Zu | `Zuek | `Haiek ]
@@ -155,12 +155,60 @@ end
 
 }}
 
+
 {client{
-module NorNorkClient = Games.MakeClient(NorNorNorkPastPresent)
+module NorNorkPastPresentClient = struct
+  include NorNorkPastPresentShared
+
+  module E = Eus_aditzak
+  type help_t = E.animation
+  type helper = (help_t, question) Games._helper
+
+  let start_animation t =
+    Lwt.async (fun () -> E.start_animation t)
+
+  let stop_animation t =
+    E.stop_animation t
+
+  let create_help_button refocus_after_click t =
+    let play_help = Games.create_button `Info "Show me how it works" in
+    let help_dom = Html5.To_dom.of_button play_help in
+    let on_play_help _ _ =
+      let () = refocus_after_click () in
+      let () = start_animation t in
+      Lwt.return_unit
+    in
+    let open Lwt_js_events in
+    let () = async (fun () ->
+      clicks help_dom on_play_help) in
+    play_help
+
+  let get_animation refocus_after_click _ =
+    let height, width = 300, 700 in
+    let canvas = E.create_canvas_elt 300 700 in
+    let t = E.create_animation height width canvas in
+    let play_help = create_help_button refocus_after_click t in
+    let elts = [canvas; play_help] in
+    let trs = List.map (fun elt -> tr [td [elt]]) elts in
+    let anim_elt = tablex ~thead:(thead []) [tbody trs] in
+    (t, [Html5.To_dom.of_element anim_elt])
+
+  let get_help refocus_after_click =
+    Some {
+      Games.get_help = (get_animation refocus_after_click);
+      Games.stop_help = stop_animation;
+    }
+end
+
+module NorNorkClient = Games.MakeClient(NorNorkPastPresentClient)
 }}
 
 {server{
-module NorNorkServer = Games.MakeServer(NorNorNorkPastPresent)
+module NorNorkPastPresentServer = struct
+  include NorNorkPastPresentShared
+  let is_there_help = true
+end
+module NorNorkServer = Games.MakeServer(NorNorkPastPresentServer)
 
 let service unused unused_bis =
   let inputs = NorNorkServer.create_html_elements () in
@@ -182,6 +230,7 @@ let service unused unused_bis =
       inputs.start_game_button
       inputs.ok_game_button
       inputs.restart_game_button
+      inputs.help_inputs
       other_inputs
   }}
   in

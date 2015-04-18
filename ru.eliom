@@ -185,7 +185,7 @@ module PeopleFunction = struct
       | `Tourist -> "турист"
 
 end
-module Dictionary = struct
+module SharedDictionary = struct
   let title = "dictionary"
   let description = "Improve your dictionary"
   let default_num_of_questions = 5
@@ -204,7 +204,6 @@ module Dictionary = struct
                   | `HouseFurniture of HouseAndFurniture.t
                   | `Nature of Nature.t
                   | `PeopleFunction of PeopleFunction.t ]
-
   let questions =
     (List.map (fun x -> `Greeting x) Greeting.values) @
       (List.map (fun x -> `Geography x) Geography.values) @
@@ -254,11 +253,22 @@ end
 }}
 
 {client{
-module RuDictClient = Games.MakeClient(Dictionary)
+module ClientDictionary = struct
+  include SharedDictionary
+  type help_t = unit
+  type helper = (help_t, question) Games._helper
+  let get_help _ = None
+end
+
+module RuDictClient = Games.MakeClient(ClientDictionary)
 }}
 
 {server{
-module RuDictServer = Games.MakeServer(Dictionary)
+module ServerDictionary = struct
+  include SharedDictionary
+  let is_there_help = false
+end
+module RuDictServer = Games.MakeServer(ServerDictionary)
 
 let service u u_bis =
   let inputs = RuDictServer.create_html_elements () in
@@ -277,6 +287,7 @@ let service u u_bis =
       inputs.start_game_button
       inputs.ok_game_button
       inputs.restart_game_button
+      inputs.help_inputs
       other_inputs
   }}
   in

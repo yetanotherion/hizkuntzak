@@ -17,6 +17,11 @@
 open Eliom_lib
 open Eliom_content
 open Html5.D
+
+let must x =
+  match x with
+    | None -> assert(false)
+    | Some x -> x
 }}
 
 {server{

@@ -15,7 +15,14 @@
 (**************************************************************************)
 {shared{
 open Eliom_content
+
+let create_canvas_elt height width =
+  Html5.D.canvas ~a:[ Html5.D.a_width width; Html5.D.a_height height ]
+           [Html5.D.pcdata "your browser doesn't support canvas";
+            Html5.D.br ()]
+
 }}
+
 {client{
 open Animation
 
@@ -38,6 +45,7 @@ let create_rect x y height width =
 type t = {
   canvas: Dom_html.canvasElement Js.t;
   zone: rect;
+  mutable run: bool;
 }
 
 let get_context t = t.canvas##getContext (Dom_html._2d_)
@@ -51,6 +59,7 @@ let create height width canvas =
   {
     zone = create_rect 0.0 0.0 (float_of_int height) (float_of_int width);
     canvas = dom_canvas;
+    run = true;
   }
 
 let draw_line t origin dest =
@@ -299,14 +308,6 @@ end
 
 }}
 
-{server{
-
-let create_canvas_elt height width =
-  Html5.D.canvas ~a:[ Html5.D.a_width width; Html5.D.a_height height ]
-           [Html5.D.pcdata "your browser doesn't support canvas";
-            Html5.D.br ()]
-
- }}
 {client{
 
 let repeat_move position ns =
@@ -334,7 +335,7 @@ let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table blocks
   in
   let compute_move elt dst =
     let start = repeat_move elt.NorNork.position wait_before_move in
-    stay_after_last_move (start @ (compute_line_move elt.NorNork.position dst))
+    stay_after_last_move (start @ (compute_line_move ~nb_of_steps:ns elt.NorNork.position dst))
   in
   let () = start.NorNork.next_position <- compute_move start start_destination in
   let _, src_dest = List.fold_left (fun (previous_end, accum) elt ->
@@ -353,13 +354,12 @@ let compute_one_rebound ?nb_of_steps:(ns=200) t table src dest =
     {y=SymBasketball.compute_ordinate v x;
      x=x}) (xrange src dest ns)
 
-let compute_jump ?nb_of_steps:(ns=200) ?max_jumps:(mj=10) t table elt dest =
+let compute_jump ?nb_of_steps:(ns=200) ?number_of_jumps:(nj=2) t table elt dest =
   let src = elt.NorNork.position in
-  let num_of_jumps = (Random.int mj) + 1 in
   let res =
-    let step_for_everyone = ns / num_of_jumps in
-    let remaining_steps = ns - step_for_everyone * num_of_jumps in
-    let x_range = xrange src dest (num_of_jumps + 1) in
+    let step_for_everyone = ns / nj in
+    let remaining_steps = ns - step_for_everyone * nj in
+    let x_range = xrange src dest (nj + 1) in
     let _, src_dest = List.fold_left
       (fun (previous_dest, accum) dest ->
         (dest, (previous_dest, dest) :: accum))
@@ -369,7 +369,7 @@ let compute_jump ?nb_of_steps:(ns=200) ?max_jumps:(mj=10) t table elt dest =
     List.fold_left (fun accum (i, (src_x, dest_x)) ->
       let nb_of_steps = step_for_everyone in
       let nb_of_steps =
-        if i == num_of_jumps - 1 then nb_of_steps + remaining_steps
+        if i == nj - 1 then nb_of_steps + remaining_steps
         else nb_of_steps
       in
       let src = {x=src_x;
@@ -381,37 +381,43 @@ let compute_jump ?nb_of_steps:(ns=200) ?max_jumps:(mj=10) t table elt dest =
   in
   elt.NorNork.next_position <- res
 
-let set_nau_zu_animation t table =
+let set_nau_zu_animation ?nb_of_steps:(ns=100) ?max_num_of_jumps:(mnj=2) t table =
   let nau = List.hd (List.nth (List.nth table 1) 1) in
   let zu = List.hd (List.nth (List.nth table 5) 2) in
-  let steps_until_touching_verb_parts = 100 in
-  let () = compute_line_animation ~nb_of_steps:100 steps_until_touching_verb_parts t table [nau; zu] in
+  let steps_until_touching_verb_parts = ns / 2in
+  let () = compute_line_animation ~nb_of_steps:ns steps_until_touching_verb_parts t table [nau; zu] in
   let ni = List.hd (List.nth (List.nth table 1) 0) in
   let zuk = List.hd (List.nth (List.nth table 5) 3) in
   let ni_end = (NorNork.end_of_text_position t ni) in
   let ni_length = ni_end.x -. ni.NorNork.position.x in
+  let num_of_jumps = (Random.int mnj) + 1 in
   let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                        ~number_of_jumps:num_of_jumps
                         t table ni {x=nau.NorNork.position.x -. ni_length;
                                     y=nau.NorNork.position.y} in
   let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                        ~number_of_jumps:num_of_jumps
                         t table zuk (NorNork.end_of_text_position t zu) in
   ()
 
-let set_animation t table =
+let set_animation ?nb_of_steps:(ns=100) ?max_num_of_jumps:(mnj=2) t table =
   let gaitu = List.hd (List.nth (List.nth table 4) 1) in
   let te = List.nth (List.nth (List.nth table 7) 2) 3 in
   let z = List.nth (List.nth (List.nth table 7) 2) 1 in
-  let steps_until_touching_verb_parts = 100 in
-  let () = compute_line_animation ~nb_of_steps:100 steps_until_touching_verb_parts t table [gaitu; z; te] in
+  let steps_until_touching_verb_parts = ns / 2 in
+  let () = compute_line_animation ~nb_of_steps:ns steps_until_touching_verb_parts t table [gaitu; z; te] in
   let gu = List.hd (List.nth (List.nth table 4) 0) in
   let haiek = List.hd (List.nth (List.nth table 7) 3) in
   let gu_end = (NorNork.end_of_text_position t gu) in
   let gu_length = gu_end.x -. gu.NorNork.position.x in
   let gu_star = List.nth (List.nth (List.nth table 8) 2) 1 in
+  let num_of_jumps = (Random.int mnj) + 1 in
   let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                        ~number_of_jumps:num_of_jumps
                         t table gu {x=gaitu.NorNork.position.x -. gu_length;
                                     y=gaitu.NorNork.position.y} in
   let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                        ~number_of_jumps:num_of_jumps
                         t table haiek (NorNork.end_of_text_position t te) in
   let () = gu_star.NorNork.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
     gu_star.NorNork.position
@@ -421,19 +427,49 @@ let set_animation t table =
   in
   ()
 
-let init_client height width canvas_elt =
+type animation = {
+  canvas: t;
+  table: NorNork.elt list list list;
+  mutable nb_times_animation_is_run: int;
+}
+
+let create_animation height width canvas_elt =
   let () = Random.self_init () in
   let t = create height width canvas_elt in
   let table = NorNork.create t in
-  let () = set_animation t table in
-  t, table
+  let () = NorNork.draw t table in
+  {canvas=t;
+   table=table;
+   nb_times_animation_is_run=0}
 
-let refresh_ui t table =
-  while_lwt true do
+let compute_nb_of_animation_steps t =
+  (* the same javascript code is executed faster each execution
+     (most probably due to optimizations like
+     https://www.webkit.org/blog/3362/introducing-the-webkit-ftl-jit/).
+     This has the side effect of making the same animation
+     go faster at each execution. It makes understanding
+     the tables harder, which is the opposite of the animation goal.
+     We count the number of times the animation is run
+     as a workaround to slow down the animation execution.
+  *)
+  if t.nb_times_animation_is_run = 0 then 100
+  else
+    let max_nb_steps = 500 in
+    let slow_down_factor = int_of_float (100.0 /. float_of_int t.nb_times_animation_is_run) in
+    Pervasives.min max_nb_steps (100 + slow_down_factor)
+
+let start_animation t =
+  let () = set_animation ~nb_of_steps:(compute_nb_of_animation_steps t) t.canvas t.table in
+  let () = t.nb_times_animation_is_run <-
+    t.nb_times_animation_is_run + 1
+  in
+  while_lwt t.canvas.run do
     lwt () = Lwt_js_events.request_animation_frame () in
-    let () = NorNork.draw t table in
+    let () = NorNork.draw t.canvas t.table in
     Lwt.return_unit
   done
+
+let stop_animation t = t.canvas.run <- false
 
 }}
 {server{
@@ -441,8 +477,8 @@ let service unused unused_bis =
   let height, width = 300, 700 in
   let canvas_elt = create_canvas_elt height width in
   let _ = {unit{
-    let t, table = init_client %height %width %canvas_elt in
-    Lwt.async (fun () -> refresh_ui t table)
+    let t = create_animation %height %width %canvas_elt in
+    Lwt.async (fun () -> start_animation t)
   }}
   in
   let page =
