@@ -146,8 +146,73 @@ let conjugate_nor_nork p time =
     | `Present -> conjugate_nor_nork_present p
     | `Past -> conjugate_nor_nork_past p
 
+let conjugate_nor_nori_present param =
+  let nor, nori = param in
+  let beggining =
+    match nor with
+      | `Ni -> "natzai"
+      | `Hi -> "hatzai"
+      | `Hura -> "zai"
+      | `Gu -> "gatzaizki"
+      | `Zu | `Zuek -> "zatzaizki"
+      | `Haiek -> "zaizki"
+  in
+  let ending =
+    match nori with
+      | `Niri -> "t"
+      | `Hiri `Male -> "k"
+      | `Hiri `Female -> "n"
+      | `Hari -> "o"
+      | `Guri -> "gu"
+      | `Zuri -> "zu"
+      | `Zuei -> "zue"
+      | `Haiei -> "e"
+  in
+  let last_ending =
+    match nor with
+      | `Ni | `Hi | `Hura | `Gu | `Zu | `Haiek -> ""
+      | `Zuek -> "te"
+  in
+  beggining ^ ending ^ last_ending
+
+let conjugate_nor_nori_past param =
+  let nor, nori = param in
+  let beggining =
+    match nor with
+      | `Ni -> "nintzai"
+      | `Hi -> "hintzai"
+      | `Hura -> "zitzai"
+      | `Gu -> "gintzaizki"
+      | `Zu | `Zuek -> "zintzaizki"
+      | `Haiek -> "zitzaizki"
+  in
+  let ending =
+    match nori with
+      | `Niri -> "da"
+      | `Hiri `Male -> "a"
+      | `Hiri `Female -> "na"
+      | `Hari -> "o"
+      | `Guri -> "gu"
+      | `Zuri -> "zu"
+      | `Zuei -> "zue"
+      | `Haiei -> "e"
+  in
+  let last_ending =
+    match nor with
+      | `Ni | `Hi | `Hura | `Gu | `Zu | `Haiek -> "n"
+      | `Zuek -> "ten"
+  in
+  beggining ^ ending ^ last_ending
+
+let conjugate_nor_nori param time =
+  match time with
+    | `Present -> conjugate_nor_nori_present param
+    | `Past -> conjugate_nor_nori_past param
+
 let conjugate param time =
   match param with
     | `Nor p -> conjugate_nor p time
     | `NorNork p -> conjugate_nor_nork p time
+    | `NorNori p -> conjugate_nor_nori p time
+
 }}
