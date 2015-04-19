@@ -157,10 +157,18 @@ module IndicativePastPresentShared = struct
                                random_element nork_modes),
                      RandomVerbs.random_nor_nork_verb (),
                      time)
-      | `NorNori -> (`NorNori (random_element nor_modes,
-                               random_element nori_modes),
-                     RandomVerbs.random_nor_nori_verb (),
-                     time)
+      | `NorNori ->
+        let rec get_allowed_nor_nori_values () =
+          let nor = random_element nor_modes in
+          let nori = random_element nori_modes in
+          match nor, nori with
+            | `Zuek, `Hiri _ -> get_allowed_nor_nori_values ()
+            | _ -> (nor, nori)
+        in
+        let nor, nori = get_allowed_nor_nori_values () in
+        (`NorNori (nor, nori),
+         RandomVerbs.random_nor_nori_verb (),
+         time)
 
   let question_to_string current_question answero =
     let ps = Printf.sprintf in
