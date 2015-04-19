@@ -244,12 +244,15 @@ struct
     in
     h.curr_helper <- None
 
-  let hide_helper h _ _ =
+  let do_hide_helper h =
     let () = reset_curr_helper h in
     let () = Utils.hidde_element h.out_of_help_button in
     let () = h.help_is_asked <- false in
     let () = Utils.show_element h.help_button in
-    let () = Html5.Manip.replaceChildren (Html5.Of_dom.of_div h.help_div) [] in
+    Html5.Manip.replaceChildren (Html5.Of_dom.of_div h.help_div) []
+
+  let hide_helper h _ _ =
+    let () = do_hide_helper h in
     Lwt.return_unit
 
   let update_help t =
@@ -318,6 +321,11 @@ struct
 
   let start_game t =
     let () = Utils.show_element t.game_params.answer in
+    let () =
+      match t.help_inputs with
+        | None -> ()
+        | Some h -> Utils.show_element h.help_button
+    in
     let nb_questions, others = get_input_params t.game_params in
     let () = t.current_game <- Some (GC.create others) in
     t.current_score <- Some (Score.create nb_questions)
@@ -326,8 +334,14 @@ struct
     let () = Html5.Manip.replaceChildren t.result_div [pcdata (Score.to_string score)] in
     let () = Utils.hidde_element t.answer_input in
     let () = Utils.hidde_element t.game_params.answer in
-    Html5.Manip.replaceChildren t.question_board []
-
+    let () = Html5.Manip.replaceChildren t.question_board [] in
+    match t.help_inputs with
+      | None -> ()
+      | Some h -> begin
+        let () = do_hide_helper h in
+        let () = Utils.hidde_element h.help_button in
+        ()
+      end
   let handle_answer t =
     let (question, score) =
       match (t.current_question, t.current_score) with
