@@ -218,24 +218,113 @@ let split_rectangle rectangle ncolumns nlines =
                            height=line_height;
                            width=columns_width}) xidxl) yidxl
 
+type elt = {
+  position: point;
+  text: Text.t;
+  mutable next_position: point list;
+}
+
+let create_elt position text = {position=position;
+                                text=text;
+                                next_position=[]}
+
+let end_of_text_position t elt =
+  let ctx = get_context t in
+  {x=elt.position.x +. (Text.message_length ctx elt.text);
+   y=elt.position.y}
+
+let draw_text_element t text_element =
+  let position, next_position =
+    match text_element.next_position with
+      | [] -> text_element.position, []
+      | hd :: tl -> hd, tl
+  in
+  let () = text_element.next_position <- next_position in
+  Text.write (get_context t) text_element.text position
+
+let draw_text t text_table =
+  let ctx = get_context t in
+  let () = ctx##fillStyle <- Js.string "rgb(0, 0, 0)" in
+  List.iter (fun l ->
+    List.iter (fun l ->
+      List.iter (fun x -> draw_text_element t x) l) l)
+    text_table
+
+let repeat_move position ns =
+  List.fold_left (fun accum _ -> position :: accum) [] (range 0 ns)
+
+let compute_line_move ?nb_of_steps:(ns=200) src dst =
+  let line = Line.create src dst in
+  List.map (fun x -> {x=x;
+                      y=Line.y_axis line x}) (xrange src dst ns)
+
+let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table blocks =
+  let ctx = get_context t in
+  let middle = {x=t.zone.width /. 2.0;
+                y=t.zone.height /. 2.0} in
+  let get_elt_length ctx elt =
+    Text.message_x_length ctx elt.text.Text.text
+  in
+  let start = List.hd blocks in
+  let start_length = get_elt_length ctx start in
+  let start_destination = {x=middle.x -. start_length;
+                           y=middle.y} in
+  let stay_after_last_move move =
+    let last = List.hd (List.rev move) in
+    move @ (repeat_move last ns)
+  in
+  let compute_move elt dst =
+    let start = repeat_move elt.position wait_before_move in
+    stay_after_last_move (start @ (compute_line_move ~nb_of_steps:ns elt.position dst))
+  in
+  let () = start.next_position <- compute_move start start_destination in
+  let _, src_dest = List.fold_left (fun (previous_end, accum) elt ->
+    let next_dest = {x=previous_end.x +. (get_elt_length ctx elt);
+                     y=middle.y} in
+    (next_dest, (elt, compute_move elt previous_end) :: accum)) (middle, []) (List.tl blocks)
+  in
+  let src_dest = List.rev src_dest in
+  let () = List.iter (fun (elt, move) ->
+    elt.next_position <- move) src_dest in
+  ()
+
+let compute_one_rebound ?nb_of_steps:(ns=200) t table src dest =
+  let v = SymBasketball.create src dest in
+  List.map (fun x ->
+    {y=SymBasketball.compute_ordinate v x;
+     x=x}) (xrange src dest ns)
+
+let compute_jump ?nb_of_steps:(ns=200) ?number_of_jumps:(nj=2) t table elt dest =
+  let src = elt.position in
+  let res =
+    let step_for_everyone = ns / nj in
+    let remaining_steps = ns - step_for_everyone * nj in
+    let x_range = xrange src dest (nj + 1) in
+    let _, src_dest = List.fold_left
+      (fun (previous_dest, accum) dest ->
+        (dest, (previous_dest, dest) :: accum))
+      (List.hd x_range, []) (List.tl x_range)
+    in
+    let src_dest = enumerate (List.rev src_dest) in
+    List.fold_left (fun accum (i, (src_x, dest_x)) ->
+      let nb_of_steps = step_for_everyone in
+      let nb_of_steps =
+        if i == nj - 1 then nb_of_steps + remaining_steps
+        else nb_of_steps
+      in
+      let src = {x=src_x;
+                 y=src.y} in
+      let dest = {x=dest_x;
+                  y=dest.y} in
+      let curr_jump = compute_one_rebound ~nb_of_steps:nb_of_steps t table src dest in
+      List.append accum curr_jump) [] src_dest
+  in
+  elt.next_position <- res
 
 module NorNork = struct
   let nb_of_rectangles = 10
 
-   type elt = {
-     position: point;
-     text: Text.t;
-     mutable next_position: point list;
-   }
-
-   let create_elt position text = {position=position;
-                                   text=text;
-                                   next_position=[]}
-
-   let end_of_text_position t elt =
-    let ctx = get_context t in
-    {x=elt.position.x +. (Text.message_length ctx elt.text);
-     y=elt.position.y}
+  type param = Questions.nor * Questions.nork
 
   let draw_tabular t =
     let one_rectangle_size = t.zone.height /. (float_of_int nb_of_rectangles) in
@@ -254,23 +343,6 @@ module NorNork = struct
     (* and three horizontal lines as delimiter *)
     let to_y_labels = rect_idx_to_y_label 0.0 one_rectangle_size in
     draw_horizontal_lines_in_rect_zone t t.zone (to_y_labels [0; 1; 11])
-
-  let draw_text_element t text_element =
-    let position, next_position =
-      match text_element.next_position with
-        | [] -> text_element.position, []
-        | hd :: tl -> hd, tl
-    in
-    let () = text_element.next_position <- next_position in
-    Text.write (get_context t) text_element.text position
-
-  let draw_text t text_table =
-    let ctx = get_context t in
-    let () = ctx##fillStyle <- Js.string "rgb(0, 0, 0)" in
-    List.iter (fun l ->
-      List.iter (fun l ->
-        List.iter (fun x -> draw_text_element t x) l) l)
-      text_table
 
   let create ?police_name:(p="serif") t =
     let rectangles = split_rectangle t.zone 4 (nb_of_rectangles - 1) in
@@ -312,227 +384,168 @@ module NorNork = struct
     let () = draw_tabular t in
     draw_text t text
 
+  let get_elements_to_move table norNork =
+    let nor, nork = norNork in
+
+    let nor_to_idx nor =
+      match nor with
+        | `Ni -> 1
+        | `Hi -> 2
+        | `Hura -> 3
+        | `Gu -> 4
+        | `Zu -> 5
+        | `Zuek -> 6
+        | `Haiek -> 7
+    in
+
+    let nork_to_idx nork =
+      match nork with
+        | `Nik -> 1
+        | `Hik _ -> 2
+        | `Hark -> 3
+        | `Guk -> 4
+        | `Zuk -> 5
+        | `Zuek -> 6
+        | `Haiek -> 7
+    in
+
+    let get_nor_element_in_table nor =
+      List.hd (List.nth (List.nth table (nor_to_idx nor)) 0)
+    in
+
+    let get_nor_verb_part_element_in_table nor =
+      List.hd (List.nth (List.nth table (nor_to_idx nor)) 1)
+    in
+
+    let get_nork_verb_part_in_table nork =
+      let elt = List.nth (List.nth table (nork_to_idx nork)) 2 in
+      match nork with
+        | `Nik |  `Hark | `Guk | `Zuk | `Zuek | `Hik `Male ->
+          List.hd elt
+        | `Hik `Female -> List.nth elt 2
+        | `Haiek -> List.nth elt 3
+    in
+
+    let get_nork_element_in_table nork =
+      List.hd (List.nth (List.nth table (nork_to_idx nork)) 3)
+    in
+
+    let nor_sure =
+      get_nor_element_in_table nor,
+      get_nor_verb_part_element_in_table nor
+    in
+
+    let nork_sure =
+      get_nork_element_in_table nork,
+      get_nork_verb_part_in_table nork
+    in
+
+    let haiek_optional_verb_part = List.nth (List.nth (List.nth table 7) 2) 1 in
+    let nor_optional_verb_part = List.nth (List.nth table 8) 2 in
+    let nor_optional =
+      match nork with
+        | `Nik | `Hik _ | `Hark | `Guk | `Zuk | `Zuek -> None
+        | `Haiek -> begin
+          match nor with
+            | `Ni | `Hi | `Hura | `Zuek -> None
+            | `Gu -> Some (List.nth nor_optional_verb_part 1,
+                           haiek_optional_verb_part)
+            | `Zu -> Some (List.nth nor_optional_verb_part 3,
+                           haiek_optional_verb_part)
+            | `Haiek -> Some (List.nth nor_optional_verb_part 5,
+                              haiek_optional_verb_part)
+        end
+    in
+    nor_sure, nork_sure, nor_optional
+
+  let set_animation ?nb_of_steps:(ns=100) ?max_num_of_jumps:(mnj=2) t table norNork =
+    let (nor, nor_verb), (nork, nork_verb), nor_optional = get_elements_to_move table norNork in
+    let steps_until_touching_verb_parts = ns / 2 in
+    let line_animation_l =
+      match nor_optional with
+        | None -> [nor_verb; nork_verb]
+        | Some (_, z) -> [nor_verb; z; nork_verb]
+    in
+
+    let () = compute_line_animation ~nb_of_steps:ns steps_until_touching_verb_parts t table line_animation_l in
+    let nor_end = (end_of_text_position t nor) in
+    let nor_length = nor_end.x -. nor.position.x in
+    let num_of_jumps = (Random.int mnj) + 1 in
+    let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                          ~number_of_jumps:num_of_jumps
+                          t table nor {x=nor_verb.position.x -. nor_length;
+                                      y=nor_verb.position.y} in
+    let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                          ~number_of_jumps:num_of_jumps
+                          t table nork (end_of_text_position t nork_verb) in
+    match nor_optional with
+      | None -> ()
+      | Some (nor_star, z) ->
+        nor_star.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
+          nor_star.position
+          {x=z.position.x;
+           y=z.position.y +. (Text.message_height nor_star.text);
+          }
 end
 
-}}
 
-{client{
-
-let repeat_move position ns =
-  List.fold_left (fun accum _ -> position :: accum) [] (range 0 ns)
-
-let compute_line_move ?nb_of_steps:(ns=200) src dst =
-  let line = Line.create src dst in
-  List.map (fun x -> {x=x;
-                      y=Line.y_axis line x}) (xrange src dst ns)
-
-let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table blocks =
-  let ctx = get_context t in
-  let middle = {x=t.zone.width /. 2.0;
-                y=t.zone.height /. 2.0} in
-  let get_elt_length ctx elt =
-    Text.message_x_length ctx elt.NorNork.text.Text.text
-  in
-  let start = List.hd blocks in
-  let start_length = get_elt_length ctx start in
-  let start_destination = {x=middle.x -. start_length;
-                           y=middle.y} in
-  let stay_after_last_move move =
-    let last = List.hd (List.rev move) in
-    move @ (repeat_move last ns)
-  in
-  let compute_move elt dst =
-    let start = repeat_move elt.NorNork.position wait_before_move in
-    stay_after_last_move (start @ (compute_line_move ~nb_of_steps:ns elt.NorNork.position dst))
-  in
-  let () = start.NorNork.next_position <- compute_move start start_destination in
-  let _, src_dest = List.fold_left (fun (previous_end, accum) elt ->
-    let next_dest = {x=previous_end.x +. (get_elt_length ctx elt);
-                     y=middle.y} in
-    (next_dest, (elt, compute_move elt previous_end) :: accum)) (middle, []) (List.tl blocks)
-  in
-  let src_dest = List.rev src_dest in
-  let () = List.iter (fun (elt, move) ->
-    elt.NorNork.next_position <- move) src_dest in
-  ()
-
-let compute_one_rebound ?nb_of_steps:(ns=200) t table src dest =
-  let v = SymBasketball.create src dest in
-  List.map (fun x ->
-    {y=SymBasketball.compute_ordinate v x;
-     x=x}) (xrange src dest ns)
-
-let compute_jump ?nb_of_steps:(ns=200) ?number_of_jumps:(nj=2) t table elt dest =
-  let src = elt.NorNork.position in
-  let res =
-    let step_for_everyone = ns / nj in
-    let remaining_steps = ns - step_for_everyone * nj in
-    let x_range = xrange src dest (nj + 1) in
-    let _, src_dest = List.fold_left
-      (fun (previous_dest, accum) dest ->
-        (dest, (previous_dest, dest) :: accum))
-      (List.hd x_range, []) (List.tl x_range)
-    in
-    let src_dest = enumerate (List.rev src_dest) in
-    List.fold_left (fun accum (i, (src_x, dest_x)) ->
-      let nb_of_steps = step_for_everyone in
-      let nb_of_steps =
-        if i == nj - 1 then nb_of_steps + remaining_steps
-        else nb_of_steps
-      in
-      let src = {x=src_x;
-                 y=src.y} in
-      let dest = {x=dest_x;
-                  y=dest.y} in
-      let curr_jump = compute_one_rebound ~nb_of_steps:nb_of_steps t table src dest in
-      List.append accum curr_jump) [] src_dest
-  in
-  elt.NorNork.next_position <- res
-
-let get_elements_to_move table norNork =
-  let nor, nork = norNork in
-
-  let nor_to_idx nor =
-    match nor with
-      | `Ni -> 1
-      | `Hi -> 2
-      | `Hura -> 3
-      | `Gu -> 4
-      | `Zu -> 5
-      | `Zuek -> 6
-      | `Haiek -> 7
-  in
-
-  let nork_to_idx nork =
-    match nork with
-      | `Nik -> 1
-      | `Hik _ -> 2
-      | `Hark -> 3
-      | `Guk -> 4
-      | `Zuk -> 5
-      | `Zuek -> 6
-      | `Haiek -> 7
-  in
-
-  let get_nor_element_in_table nor =
-    List.hd (List.nth (List.nth table (nor_to_idx nor)) 0)
-  in
-  let get_nor_verb_part_element_in_table nor =
-    List.hd (List.nth (List.nth table (nor_to_idx nor)) 1)
-  in
-
-  let get_nork_verb_part_in_table nork =
-    let elt = List.nth (List.nth table (nork_to_idx nork)) 2 in
-    match nork with
-      | `Nik |  `Hark | `Guk | `Zuk | `Zuek | `Hik `Male ->
-        List.hd elt
-      | `Hik `Female -> List.nth elt 2
-      | `Haiek -> List.nth elt 3
-  in
-
-  let get_nork_element_in_table nork =
-    List.hd (List.nth (List.nth table (nork_to_idx nork)) 3)
-  in
-
-  let nor_sure =
-    get_nor_element_in_table nor,
-    get_nor_verb_part_element_in_table nor
-  in
-
-  let nork_sure =
-    get_nork_element_in_table nork,
-    get_nork_verb_part_in_table nork
-  in
-
-  let haiek_optional_verb_part = List.nth (List.nth (List.nth table 7) 2) 1 in
-  let nor_optional_verb_part = List.nth (List.nth table 8) 2 in
-  let nor_optional =
-    match nork with
-      | `Nik | `Hik _ | `Hark | `Guk | `Zuk | `Zuek -> None
-      | `Haiek -> begin
-        match nor with
-          | `Ni | `Hi | `Hura | `Zuek -> None
-          | `Gu -> Some (List.nth nor_optional_verb_part 1,
-                         haiek_optional_verb_part)
-          | `Zu -> Some (List.nth nor_optional_verb_part 3,
-                         haiek_optional_verb_part)
-          | `Haiek -> Some (List.nth nor_optional_verb_part 5,
-                            haiek_optional_verb_part)
-      end
-  in
-  nor_sure, nork_sure, nor_optional
-
-let set_animation ?nb_of_steps:(ns=100) ?max_num_of_jumps:(mnj=2) t table norNork =
-  let (nor, nor_verb), (nork, nork_verb), nor_optional = get_elements_to_move table norNork in
-  let steps_until_touching_verb_parts = ns / 2 in
-  let line_animation_l =
-    match nor_optional with
-      | None -> [nor_verb; nork_verb]
-      | Some (_, z) -> [nor_verb; z; nork_verb]
-  in
-
-  let () = compute_line_animation ~nb_of_steps:ns steps_until_touching_verb_parts t table line_animation_l in
-  let nor_end = (NorNork.end_of_text_position t nor) in
-  let nor_length = nor_end.x -. nor.NorNork.position.x in
-  let num_of_jumps = (Random.int mnj) + 1 in
-  let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
-                        ~number_of_jumps:num_of_jumps
-                        t table nor {x=nor_verb.NorNork.position.x -. nor_length;
-                                    y=nor_verb.NorNork.position.y} in
-  let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
-                        ~number_of_jumps:num_of_jumps
-                        t table nork (NorNork.end_of_text_position t nork_verb) in
-  match nor_optional with
-    | None -> ()
-    | Some (nor_star, z) ->
-      nor_star.NorNork.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
-        nor_star.NorNork.position
-        {x=z.NorNork.position.x;
-         y=z.NorNork.position.y +. (Text.message_height nor_star.NorNork.text);
-        }
+type table = elt list list list
 
 type animation = {
   canvas: t;
-  table: NorNork.elt list list list;
+  table: table;
   mutable nb_times_animation_is_run: int;
 }
 
-let create_animation height width canvas_elt =
-  let () = Random.self_init () in
-  let t = create height width canvas_elt in
-  let table = NorNork.create t in
-  let () = NorNork.draw t table in
-  {canvas=t;
-   table=table;
-   nb_times_animation_is_run=0}
+module type Table = sig
+  type param
+  val create: ?police_name:string -> t -> table
+  val draw: t -> table -> unit
+  val set_animation: ?nb_of_steps:int -> ?max_num_of_jumps:int -> t -> table -> param -> unit
+end
 
-let compute_nb_of_animation_steps t =
-  (* the same javascript code is executed faster each execution
-     (most probably due to optimizations like
-     https://www.webkit.org/blog/3362/introducing-the-webkit-ftl-jit/).
-     This has the side effect of making the same animation
-     go faster at each execution. It makes understanding
-     the tables harder, which is the opposite of the animation goal.
-     We count the number of times the animation is run
-     as a workaround to slow down the animation execution.
-  *)
-  if t.nb_times_animation_is_run = 0 then 100
-  else
-    let max_nb_steps = 500 in
-    let slow_down_factor = int_of_float (100.0 /. float_of_int t.nb_times_animation_is_run) in
-    Pervasives.min max_nb_steps (100 + slow_down_factor)
 
-let start_animation t norNork =
-  let () = set_animation ~nb_of_steps:(compute_nb_of_animation_steps t) t.canvas t.table norNork in
-  let () = t.nb_times_animation_is_run <-
-    t.nb_times_animation_is_run + 1
-  in
-  while_lwt t.canvas.run do
-    lwt () = Lwt_js_events.request_animation_frame () in
-    let () = NorNork.draw t.canvas t.table in
-    Lwt.return_unit
-  done
+module MakeAnimation (T:Table) = struct
 
-let stop_animation t = t.canvas.run <- false
+  let compute_nb_of_animation_steps t =
+    (* the same javascript code is executed faster each execution
+       (most probably due to optimizations like
+       https://www.webkit.org/blog/3362/introducing-the-webkit-ftl-jit/).
+       This has the side effect of making the same animation
+       go faster at each execution. It makes understanding
+       the tables harder, which is the opposite of the animation goal.
+       We count the number of times the animation is run
+       as a workaround to slow down the animation execution.
+    *)
+    if t.nb_times_animation_is_run = 0 then 100
+    else
+      let max_nb_steps = 500 in
+      let slow_down_factor = int_of_float (100.0 /. float_of_int t.nb_times_animation_is_run) in
+      Pervasives.min max_nb_steps (100 + slow_down_factor)
+
+  let create_animation height width canvas_elt =
+    let () = Random.self_init () in
+    let t = create height width canvas_elt in
+    let table = T.create t in
+    let () = T.draw t table in
+    {canvas=t;
+     table=table;
+     nb_times_animation_is_run=0}
+
+  let start_animation t param =
+    let () = T.set_animation ~nb_of_steps:(compute_nb_of_animation_steps t) t.canvas t.table param in
+    let () = t.nb_times_animation_is_run <-
+      t.nb_times_animation_is_run + 1
+    in
+    while_lwt t.canvas.run do
+      lwt () = Lwt_js_events.request_animation_frame () in
+      let () = T.draw t.canvas t.table in
+      Lwt.return_unit
+    done
+
+  let stop_animation t = t.canvas.run <- false
+ end
+
+module NorNorkAnimation = MakeAnimation (NorNork)
 
 }}

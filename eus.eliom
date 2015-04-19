@@ -187,29 +187,39 @@ module IndicativePastPresentClient = struct
   include IndicativePastPresentShared
 
   module E = Eus_aditzak
-  type help_t = E.animation option
+  type supported_help = [`NorNorkPresent]
+  type help_t = (supported_help * E.animation) option
   type helper = (help_t, question) Games._helper
-
-  let start_animation t norNork =
-    Lwt.async (fun () -> E.start_animation t norNork)
 
   let stop_animation animo =
     match animo with
       | None -> ()
-      | Some t -> E.stop_animation t
+      | Some (mode, t) ->
+        match mode with
+          | `NorNorkPresent -> E.NorNorkAnimation.stop_animation t
 
-  let create_help_button refocus_after_click t norNork =
+  let create_help_button refocus_after_click t f =
     let play_help = Games.create_button `Info "Show me how it works" in
     let help_dom = Html5.To_dom.of_button play_help in
     let on_play_help _ _ =
       let () = refocus_after_click () in
-      let () = start_animation t norNork in
+      let () = Lwt.async (fun () -> f ()) in
       Lwt.return_unit
     in
     let open Lwt_js_events in
     let () = async (fun () ->
       clicks help_dom on_play_help) in
     play_help
+
+  let create_and_setup refocus_after_click create_animation start_animation param mode =
+    let height, width = 300, 700 in
+    let canvas = E.create_canvas_elt 300 700 in
+    let t = create_animation height width canvas in
+    let play_help = create_help_button refocus_after_click t (fun () -> start_animation t param) in
+    let elts = [canvas; play_help] in
+    let trs = List.map (fun elt -> tr [td [elt]]) elts in
+    let anim_elt = tablex ~a:[a_class ["centered"]] ~thead:(thead []) [tbody trs] in
+    (Some (mode, t), [Html5.To_dom.of_element anim_elt])
 
   let get_animation refocus_after_click question =
     let mode, all_question, time = (question: question) in
@@ -221,14 +231,8 @@ module IndicativePastPresentClient = struct
       | `NorNork norNork -> match time with
           | `Past -> not_available
           | `Present ->
-            let height, width = 300, 700 in
-            let canvas = E.create_canvas_elt 300 700 in
-            let t = E.create_animation height width canvas in
-            let play_help = create_help_button refocus_after_click t norNork in
-            let elts = [canvas; play_help] in
-            let trs = List.map (fun elt -> tr [td [elt]]) elts in
-            let anim_elt = tablex ~a:[a_class ["centered"]] ~thead:(thead []) [tbody trs] in
-            (Some t, [Html5.To_dom.of_element anim_elt])
+            let open E.NorNorkAnimation in
+            create_and_setup refocus_after_click create_animation start_animation norNork `NorNorkPresent
 
   let get_help refocus_after_click =
     Some {
