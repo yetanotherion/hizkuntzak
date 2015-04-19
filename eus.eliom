@@ -21,22 +21,25 @@ open Html5.D
 module RandomVerbs: sig
   val random_nor_verb: unit -> string
   val random_nor_nork_verb: unit -> string
+  val random_nor_nori_verb: unit -> string
 end =
 struct
   let intransitive_verbs = ["izan"]
   let transitive_verbs = ["ukan"; "ikusi"; "jan"]
+  let nor_nori_verbs = ["gustatu"]
   let random_nor_verb () = Games.random_element intransitive_verbs
   let random_nor_nork_verb () = Games.random_element transitive_verbs
+  let random_nor_nori_verb () = Games.random_element nor_nori_verbs
 end
 
-module NorNorkPastPresentShared = struct
+module IndicativePastPresentShared = struct
   include Eus_aditzak.Questions
 
   type t = {
-    v_mode: [ `Nor | `NorNork | `All ];
+    v_mode: [ `Nor | `NorNork | `NorNori | `All ];
     t_mode: [ `Past | `Present | `All ];
   }
-  let title = "nor and nor/nork"
+  let title = "indicative"
   let description = "The first game consists at conjugating verbs"
   let default_num_of_questions = 5
   let other_number_of_questions = [1; 10; 25; 50; 100]
@@ -46,7 +49,7 @@ module NorNorkPastPresentShared = struct
     let open Games in
     {argument_description = "In which mode would you like to conjugate the verbs?";
      argument_label="mode";
-     non_default_arguments = ["nor"; "all" ];
+     non_default_arguments = ["nor"; "nor/nori"; "all" ];
      default_argument = "nor/nork"}
 
   let v_time_argument =
@@ -63,6 +66,9 @@ module NorNorkPastPresentShared = struct
   let nor_modes = [`Ni; `Hi; `Hura; `Gu; `Zu; `Zuek; `Haiek]
   let nork_modes = [`Nik; (`Hik `Male); (`Hik `Female);
                     `Hark; `Guk; `Zuk; `Zuek; `Haiek]
+
+  let nori_modes = [`Niri; (`Hiri `Male); (`Hiri `Female);
+                    `Hari; `Guri; `Zuri; `Zuei; `Haiei]
 
   let nor_to_string x =
     match x with
@@ -88,6 +94,20 @@ module NorNorkPastPresentShared = struct
       | `Zuek -> "zuek"
       | `Haiek -> "haiek"
 
+  let nori_to_string x =
+    match x with
+      | `Niri -> "niri"
+      | `Hiri p -> begin
+        match p with
+          | `Male -> "hiri (male)"
+          | `Female -> "hiri (female)"
+      end
+      | `Hari -> "hari"
+      | `Guri -> "guri"
+      | `Zuri -> "zuri"
+      | `Zuei -> "zuei"
+      | `Haiei -> "haiei"
+
   let time_to_string x =
     match x with
       | `Present -> "present"
@@ -97,6 +117,7 @@ module NorNorkPastPresentShared = struct
     match v with
       | "nor" -> `Nor
       | "nor/nork" -> `NorNork
+      | "nor/nori" -> `NorNori
       | "all" -> `All
       | _ -> assert(false)
 
@@ -120,6 +141,7 @@ module NorNorkPastPresentShared = struct
       match t.v_mode with
         | `Nor -> [`Nor]
         | `NorNork -> [`NorNork]
+        | `NorNori -> [`NorNori]
         | `All -> modes
     in
     let valid_times =
@@ -135,6 +157,11 @@ module NorNorkPastPresentShared = struct
                                random_element nork_modes),
                      RandomVerbs.random_nor_nork_verb (),
                      time)
+      | `NorNori -> (`NorNori (random_element nor_modes,
+                               random_element nori_modes),
+                     RandomVerbs.random_nor_nori_verb (),
+                     time)
+
   let question_to_string current_question answero =
     let ps = Printf.sprintf in
     let answer =
@@ -145,6 +172,7 @@ module NorNorkPastPresentShared = struct
     match current_question with
       | (`Nor nor, v, time) -> ps "%s %s %s (%s)" (nor_to_string nor) v answer (time_to_string time)
       | (`NorNork (nor, nork), v, time) -> ps "%s %s %s %s (%s)" (nork_to_string nork) (nor_to_string nor) v answer (time_to_string time)
+      | (`NorNori (nor, nori), v, time) -> ps "%s %s %s %s (%s)" (nor_to_string nor) (nori_to_string nori) v answer (time_to_string time)
 
   let question_answer current_question =
     let mode, _, time = current_question in
@@ -155,8 +183,8 @@ end
 
 
 {client{
-module NorNorkPastPresentClient = struct
-  include NorNorkPastPresentShared
+module IndicativePastPresentClient = struct
+  include IndicativePastPresentShared
 
   module E = Eus_aditzak
   type help_t = E.animation option
@@ -189,6 +217,7 @@ module NorNorkPastPresentClient = struct
     let not_available = None, [Html5.To_dom.of_element help_no_available] in
     match mode with
       | `Nor _ -> not_available
+      | `NorNori _ -> not_available
       | `NorNork norNork -> match time with
           | `Past -> not_available
           | `Present ->
@@ -208,18 +237,18 @@ module NorNorkPastPresentClient = struct
     }
 end
 
-module NorNorkClient = Games.MakeClient(NorNorkPastPresentClient)
+module IndicativeClient = Games.MakeClient(IndicativePastPresentClient)
 }}
 
 {server{
-module NorNorkPastPresentServer = struct
-  include NorNorkPastPresentShared
+module IndicativePastPresentServer = struct
+  include IndicativePastPresentShared
   let is_there_help = true
 end
-module NorNorkServer = Games.MakeServer(NorNorkPastPresentServer)
+module IndicativeServer = Games.MakeServer(IndicativePastPresentServer)
 
 let service unused unused_bis =
-  let inputs = NorNorkServer.create_html_elements () in
+  let inputs = IndicativeServer.create_html_elements () in
   let _ = {unit{
     (* we cannot use functors in {unit{ }} sections,
        at least I got a syntax error
@@ -227,7 +256,7 @@ let service unused unused_bis =
     let inputs = %inputs in
     let open Games.GameHtmlElements in
     let other_inputs = Array.of_list inputs.other_inputs in
-    NorNorkClient.create_and_setup
+    IndicativeClient.create_and_setup
       inputs.question_board
       inputs.answer_input
       inputs.answer_output
@@ -242,6 +271,6 @@ let service unused unused_bis =
       other_inputs
   }}
   in
-  NorNorkServer.return_page inputs
+  IndicativeServer.return_page inputs
 
 }}

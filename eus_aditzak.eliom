@@ -25,7 +25,8 @@ module Questions = struct
   type genre = [ `Male | `Female ]
   type nork = [ `Nik | `Hik of genre | `Hark | `Guk | `Zuk | `Zuek | `Haiek ]
   type nor = [ `Ni | `Hi | `Hura | `Gu | `Zu | `Zuek | `Haiek ]
-  type question = [ `Nor of nor |`NorNork of (nor * nork)] * string * [ `Past | `Present ]
+  type nori = [ `Niri | `Hiri of genre | `Hari | `Guri | `Zuri | `Zuei | `Haiei ]
+  type question = [ `Nor of nor |`NorNork of (nor * nork) | `NorNori of (nor * nori)] * string * [ `Past | `Present ]
 end
 
 }}
