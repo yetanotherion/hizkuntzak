@@ -512,13 +512,13 @@ module MakeServer (GC:ServerGameConf) = struct
       match GC.is_there_help with
         | false -> game_ongoing_l, None
         | true ->
-          let help_div = div [] in
+          let help_div = div ~a:[a_class ["centered"]] [] in
           let help_button = create_button `Primary "Help" in
           let out_of_help_button = create_button ~hidden:true `Primary "I don't need help anymore" in
           (game_ongoing_l @ [help_button; out_of_help_button; help_div],
            Some (create_help help_div help_button out_of_help_button))
     in
-    let game_ongoing_div = div ~a:[a_class ["hidden"]] game_ongoing_l in
+    let game_ongoing_div = div ~a:[a_class ["hidden"; "centered"]] game_ongoing_l in
 
     {question_board = question_board;
      answer_input = answer_input;

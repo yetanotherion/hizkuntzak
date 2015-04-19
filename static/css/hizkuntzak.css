@@ -13,3 +13,13 @@ input.hidden {
 button.hidden {
  visibility: hidden;
 }
+
+table.centered {
+    width: 50%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+div.centered {
+    text-align: center;
+}

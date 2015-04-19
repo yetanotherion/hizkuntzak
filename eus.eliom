@@ -198,7 +198,7 @@ module NorNorkPastPresentClient = struct
             let play_help = create_help_button refocus_after_click t norNork in
             let elts = [canvas; play_help] in
             let trs = List.map (fun elt -> tr [td [elt]]) elts in
-            let anim_elt = tablex ~thead:(thead []) [tbody trs] in
+            let anim_elt = tablex ~a:[a_class ["centered"]] ~thead:(thead []) [tbody trs] in
             (Some t, [Html5.To_dom.of_element anim_elt])
 
   let get_help refocus_after_click =
