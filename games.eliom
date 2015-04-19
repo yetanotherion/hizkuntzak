@@ -199,6 +199,7 @@ struct
     help_button: Dom_html.buttonElement Js.t;
     out_of_help_button: Dom_html.buttonElement Js.t;
     helper: GC.helper;
+    mutable help_is_asked: bool;
     mutable curr_helper: GC.help_t option;
   }
 
@@ -209,6 +210,7 @@ struct
         Some {help_div = Html5.To_dom.of_div h.GameHtmlElements.help_div;
               help_button = Html5.To_dom.of_button h.GameHtmlElements.help_button;
               out_of_help_button = Html5.To_dom.of_button h.GameHtmlElements.out_of_help_button;
+              help_is_asked = false;
               helper = Utils.must (GC.get_help refocus);
               curr_helper = None}
 
@@ -245,24 +247,38 @@ struct
   let hide_helper h _ _ =
     let () = reset_curr_helper h in
     let () = Utils.hidde_element h.out_of_help_button in
+    let () = h.help_is_asked <- false in
     let () = Utils.show_element h.help_button in
     let () = Html5.Manip.replaceChildren (Html5.Of_dom.of_div h.help_div) [] in
     Lwt.return_unit
 
+  let update_help t =
+    match t.help_inputs with
+      | None -> ()
+      | Some h ->
+        let () = h.help_is_asked <- true in
+        let () = reset_curr_helper h in
+        let curr_helper, elements = h.helper.get_help (Utils.must t.current_question) in
+        let elements = List.map
+          (fun x -> Html5.Of_dom.of_element x)
+          (elements)
+        in
+        let () = h.curr_helper <- Some curr_helper in
+        Html5.Manip.replaceChildren (Html5.Of_dom.of_div h.help_div) elements
+
+  let update_help_if_necessary t =
+    match t.help_inputs with
+      | None -> ()
+      | Some h ->
+        if h.help_is_asked then update_help t
+
   let on_help_click h t ev _ =
-    let () = reset_curr_helper h in
     let () = Utils.hidde_element h.help_button in
     let () = Utils.show_element h.out_of_help_button in
     let open Lwt_js_events in
     let () = async (fun () ->
       clicks h.out_of_help_button (make_on_button_click t (hide_helper h))) in
-    let curr_helper, elements = h.helper.get_help (Utils.must t.current_question) in
-    let elements = List.map
-      (fun x -> Html5.Of_dom.of_element x)
-      (elements)
-    in
-    let () = h.curr_helper <- Some curr_helper in
-    let () = Html5.Manip.replaceChildren (Html5.Of_dom.of_div h.help_div) elements in
+    let () = update_help t in
     Lwt.return_unit
 
   let setup_help t =
@@ -293,7 +309,8 @@ struct
         | None -> ()
         | Some g -> begin
           let () = focus_on_answer t.answer_input in
-          t.current_question <- Some (GC.generate_question g)
+          let () = t.current_question <- Some (GC.generate_question g) in
+          update_help_if_necessary t
         end
     in
     let () = write_in_answer_input t.answer_input "" in

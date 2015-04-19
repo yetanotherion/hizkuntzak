@@ -161,14 +161,16 @@ module NorNorkPastPresentClient = struct
   include NorNorkPastPresentShared
 
   module E = Eus_aditzak
-  type help_t = E.animation
+  type help_t = E.animation option
   type helper = (help_t, question) Games._helper
 
   let start_animation t =
     Lwt.async (fun () -> E.start_animation t)
 
-  let stop_animation t =
-    E.stop_animation t
+  let stop_animation animo =
+    match animo with
+      | None -> ()
+      | Some t -> E.stop_animation t
 
   let create_help_button refocus_after_click t =
     let play_help = Games.create_button `Info "Show me how it works" in
@@ -183,15 +185,23 @@ module NorNorkPastPresentClient = struct
       clicks help_dom on_play_help) in
     play_help
 
-  let get_animation refocus_after_click _ =
-    let height, width = 300, 700 in
-    let canvas = E.create_canvas_elt 300 700 in
-    let t = E.create_animation height width canvas in
-    let play_help = create_help_button refocus_after_click t in
-    let elts = [canvas; play_help] in
-    let trs = List.map (fun elt -> tr [td [elt]]) elts in
-    let anim_elt = tablex ~thead:(thead []) [tbody trs] in
-    (t, [Html5.To_dom.of_element anim_elt])
+  let get_animation refocus_after_click question =
+    let mode, all_question, time = (question: question) in
+    let help_no_available = pcdata "Sorry that question does not have help for now" in
+    let not_available = None, [Html5.To_dom.of_element help_no_available] in
+    match mode with
+      | `Nor _ -> not_available
+      | `NorNork _ -> match time with
+          | `Past -> not_available
+          | `Present ->
+            let height, width = 300, 700 in
+            let canvas = E.create_canvas_elt 300 700 in
+            let t = E.create_animation height width canvas in
+            let play_help = create_help_button refocus_after_click t in
+            let elts = [canvas; play_help] in
+            let trs = List.map (fun elt -> tr [td [elt]]) elts in
+            let anim_elt = tablex ~thead:(thead []) [tbody trs] in
+            (Some t, [Html5.To_dom.of_element anim_elt])
 
   let get_help refocus_after_click =
     Some {
