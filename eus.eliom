@@ -46,15 +46,15 @@ module NorNorkPastPresentShared = struct
     let open Games in
     {argument_description = "In which mode would you like to conjugate the verbs?";
      argument_label="mode";
-     non_default_arguments = ["nor"; "nor/nork"];
-     default_argument = "all"}
+     non_default_arguments = ["nor"; "all" ];
+     default_argument = "nor/nork"}
 
   let v_time_argument =
     let open Games in
     {argument_description = "In which time would you like to conjugate the verbs?";
      argument_label="time";
-     non_default_arguments = ["past"; "present"];
-     default_argument = "all"
+     non_default_arguments = ["past"; "all"];
+     default_argument = "present"
     }
 
   let arguments = Array.of_list [v_mode_argument; v_time_argument]
