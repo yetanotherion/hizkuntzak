@@ -30,10 +30,8 @@ struct
 end
 
 module NorNorkPastPresentShared = struct
-  type genre = [ `Male | `Female ]
-  type nork = [ `Nik | `Hik of genre | `Hark | `Guk | `Zuk | `Zuek | `Haiek ]
-  type nor = [ `Ni | `Hi | `Hura | `Gu | `Zu | `Zuek | `Haiek ]
-  type question = [ `Nor of nor |`NorNork of (nor * nork)] * string * [ `Past | `Present ]
+  include Eus_aditzak.Questions
+
   type t = {
     v_mode: [ `Nor | `NorNork | `All ];
     t_mode: [ `Past | `Present | `All ];
@@ -164,20 +162,20 @@ module NorNorkPastPresentClient = struct
   type help_t = E.animation option
   type helper = (help_t, question) Games._helper
 
-  let start_animation t =
-    Lwt.async (fun () -> E.start_animation t)
+  let start_animation t norNork =
+    Lwt.async (fun () -> E.start_animation t norNork)
 
   let stop_animation animo =
     match animo with
       | None -> ()
       | Some t -> E.stop_animation t
 
-  let create_help_button refocus_after_click t =
+  let create_help_button refocus_after_click t norNork =
     let play_help = Games.create_button `Info "Show me how it works" in
     let help_dom = Html5.To_dom.of_button play_help in
     let on_play_help _ _ =
       let () = refocus_after_click () in
-      let () = start_animation t in
+      let () = start_animation t norNork in
       Lwt.return_unit
     in
     let open Lwt_js_events in
@@ -191,13 +189,13 @@ module NorNorkPastPresentClient = struct
     let not_available = None, [Html5.To_dom.of_element help_no_available] in
     match mode with
       | `Nor _ -> not_available
-      | `NorNork _ -> match time with
+      | `NorNork norNork -> match time with
           | `Past -> not_available
           | `Present ->
             let height, width = 300, 700 in
             let canvas = E.create_canvas_elt 300 700 in
             let t = E.create_animation height width canvas in
-            let play_help = create_help_button refocus_after_click t in
+            let play_help = create_help_button refocus_after_click t norNork in
             let elts = [canvas; play_help] in
             let trs = List.map (fun elt -> tr [td [elt]]) elts in
             let anim_elt = tablex ~thead:(thead []) [tbody trs] in

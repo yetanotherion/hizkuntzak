@@ -21,6 +21,13 @@ let create_canvas_elt height width =
            [Html5.D.pcdata "your browser doesn't support canvas";
             Html5.D.br ()]
 
+module Questions = struct
+  type genre = [ `Male | `Female ]
+  type nork = [ `Nik | `Hik of genre | `Hark | `Guk | `Zuk | `Zuek | `Haiek ]
+  type nor = [ `Ni | `Hi | `Hura | `Gu | `Zu | `Zuek | `Haiek ]
+  type question = [ `Nor of nor |`NorNork of (nor * nork)] * string * [ `Past | `Present ]
+end
+
 }}
 
 {client{
@@ -272,7 +279,7 @@ module NorNork = struct
 
     let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORK"];
                 [cs "NI"; cs "NAU"; ce "T"; ce "NIK"];
-                [cs "HI"; cs "HAU"; ce "K/N"; ce "HIK"];
+                [cs "HI"; cs "HAU"; ceL ["K"; "/"; "N"]; ce "HIK"];
                 [cs "HURA"; cs "DU"; ce "-"; ce "HARK"];
                 [cs "GU"; cs "GAITU"; ce "GU"; ce "GUK"];
                 [cs "ZU"; cs "ZAITU"; ce "ZU"; ce "ZUK"];
@@ -381,51 +388,107 @@ let compute_jump ?nb_of_steps:(ns=200) ?number_of_jumps:(nj=2) t table elt dest 
   in
   elt.NorNork.next_position <- res
 
-let set_nau_zu_animation ?nb_of_steps:(ns=100) ?max_num_of_jumps:(mnj=2) t table =
-  let nau = List.hd (List.nth (List.nth table 1) 1) in
-  let zu = List.hd (List.nth (List.nth table 5) 2) in
-  let steps_until_touching_verb_parts = ns / 2in
-  let () = compute_line_animation ~nb_of_steps:ns steps_until_touching_verb_parts t table [nau; zu] in
-  let ni = List.hd (List.nth (List.nth table 1) 0) in
-  let zuk = List.hd (List.nth (List.nth table 5) 3) in
-  let ni_end = (NorNork.end_of_text_position t ni) in
-  let ni_length = ni_end.x -. ni.NorNork.position.x in
-  let num_of_jumps = (Random.int mnj) + 1 in
-  let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
-                        ~number_of_jumps:num_of_jumps
-                        t table ni {x=nau.NorNork.position.x -. ni_length;
-                                    y=nau.NorNork.position.y} in
-  let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
-                        ~number_of_jumps:num_of_jumps
-                        t table zuk (NorNork.end_of_text_position t zu) in
-  ()
+let get_elements_to_move table norNork =
+  let nor, nork = norNork in
 
-let set_animation ?nb_of_steps:(ns=100) ?max_num_of_jumps:(mnj=2) t table =
-  let gaitu = List.hd (List.nth (List.nth table 4) 1) in
-  let te = List.nth (List.nth (List.nth table 7) 2) 3 in
-  let z = List.nth (List.nth (List.nth table 7) 2) 1 in
+  let nor_to_idx nor =
+    match nor with
+      | `Ni -> 1
+      | `Hi -> 2
+      | `Hura -> 3
+      | `Gu -> 4
+      | `Zu -> 5
+      | `Zuek -> 6
+      | `Haiek -> 7
+  in
+
+  let nork_to_idx nork =
+    match nork with
+      | `Nik -> 1
+      | `Hik _ -> 2
+      | `Hark -> 3
+      | `Guk -> 4
+      | `Zuk -> 5
+      | `Zuek -> 6
+      | `Haiek -> 7
+  in
+
+  let get_nor_element_in_table nor =
+    List.hd (List.nth (List.nth table (nor_to_idx nor)) 0)
+  in
+  let get_nor_verb_part_element_in_table nor =
+    List.hd (List.nth (List.nth table (nor_to_idx nor)) 1)
+  in
+
+  let get_nork_verb_part_in_table nork =
+    let elt = List.nth (List.nth table (nork_to_idx nork)) 2 in
+    match nork with
+      | `Nik |  `Hark | `Guk | `Zuk | `Zuek | `Hik `Male ->
+        List.hd elt
+      | `Hik `Female -> List.nth elt 2
+      | `Haiek -> List.nth elt 3
+  in
+
+  let get_nork_element_in_table nork =
+    List.hd (List.nth (List.nth table (nork_to_idx nork)) 3)
+  in
+
+  let nor_sure =
+    get_nor_element_in_table nor,
+    get_nor_verb_part_element_in_table nor
+  in
+
+  let nork_sure =
+    get_nork_element_in_table nork,
+    get_nork_verb_part_in_table nork
+  in
+
+  let haiek_optional_verb_part = List.nth (List.nth (List.nth table 7) 2) 1 in
+  let nor_optional_verb_part = List.nth (List.nth table 8) 2 in
+  let nor_optional =
+    match nork with
+      | `Nik | `Hik _ | `Hark | `Guk | `Zuk | `Zuek -> None
+      | `Haiek -> begin
+        match nor with
+          | `Ni | `Hi | `Hura | `Zuek -> None
+          | `Gu -> Some (List.nth nor_optional_verb_part 1,
+                         haiek_optional_verb_part)
+          | `Zu -> Some (List.nth nor_optional_verb_part 3,
+                         haiek_optional_verb_part)
+          | `Haiek -> Some (List.nth nor_optional_verb_part 5,
+                            haiek_optional_verb_part)
+      end
+  in
+  nor_sure, nork_sure, nor_optional
+
+let set_animation ?nb_of_steps:(ns=100) ?max_num_of_jumps:(mnj=2) t table norNork =
+  let (nor, nor_verb), (nork, nork_verb), nor_optional = get_elements_to_move table norNork in
   let steps_until_touching_verb_parts = ns / 2 in
-  let () = compute_line_animation ~nb_of_steps:ns steps_until_touching_verb_parts t table [gaitu; z; te] in
-  let gu = List.hd (List.nth (List.nth table 4) 0) in
-  let haiek = List.hd (List.nth (List.nth table 7) 3) in
-  let gu_end = (NorNork.end_of_text_position t gu) in
-  let gu_length = gu_end.x -. gu.NorNork.position.x in
-  let gu_star = List.nth (List.nth (List.nth table 8) 2) 1 in
+  let line_animation_l =
+    match nor_optional with
+      | None -> [nor_verb; nork_verb]
+      | Some (_, z) -> [nor_verb; z; nork_verb]
+  in
+
+  let () = compute_line_animation ~nb_of_steps:ns steps_until_touching_verb_parts t table line_animation_l in
+  let nor_end = (NorNork.end_of_text_position t nor) in
+  let nor_length = nor_end.x -. nor.NorNork.position.x in
   let num_of_jumps = (Random.int mnj) + 1 in
   let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
                         ~number_of_jumps:num_of_jumps
-                        t table gu {x=gaitu.NorNork.position.x -. gu_length;
-                                    y=gaitu.NorNork.position.y} in
+                        t table nor {x=nor_verb.NorNork.position.x -. nor_length;
+                                    y=nor_verb.NorNork.position.y} in
   let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
                         ~number_of_jumps:num_of_jumps
-                        t table haiek (NorNork.end_of_text_position t te) in
-  let () = gu_star.NorNork.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
-    gu_star.NorNork.position
-    {x=z.NorNork.position.x;
-     y=z.NorNork.position.y +. (Text.message_height gu_star.NorNork.text);
-    }
-  in
-  ()
+                        t table nork (NorNork.end_of_text_position t nork_verb) in
+  match nor_optional with
+    | None -> ()
+    | Some (nor_star, z) ->
+      nor_star.NorNork.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
+        nor_star.NorNork.position
+        {x=z.NorNork.position.x;
+         y=z.NorNork.position.y +. (Text.message_height nor_star.NorNork.text);
+        }
 
 type animation = {
   canvas: t;
@@ -458,8 +521,8 @@ let compute_nb_of_animation_steps t =
     let slow_down_factor = int_of_float (100.0 /. float_of_int t.nb_times_animation_is_run) in
     Pervasives.min max_nb_steps (100 + slow_down_factor)
 
-let start_animation t =
-  let () = set_animation ~nb_of_steps:(compute_nb_of_animation_steps t) t.canvas t.table in
+let start_animation t norNork =
+  let () = set_animation ~nb_of_steps:(compute_nb_of_animation_steps t) t.canvas t.table norNork in
   let () = t.nb_times_animation_is_run <-
     t.nb_times_animation_is_run + 1
   in
@@ -470,28 +533,5 @@ let start_animation t =
   done
 
 let stop_animation t = t.canvas.run <- false
-
-}}
-{server{
-let service unused unused_bis =
-  let height, width = 300, 700 in
-  let canvas_elt = create_canvas_elt height width in
-  let _ = {unit{
-    let t = create_animation %height %width %canvas_elt in
-    Lwt.async (fun () -> start_animation t)
-  }}
-  in
-  let page =
-    Html5.D.html
-    (Html5.D.head
-       (Html5.D.title (Html5.D.pcdata "Aditzak how to"))
-       [ Html5.D.css_link
-	   ~uri:(Html5.D.make_uri
-		   (Eliom_service.static_dir ()) ["css";"hizkuntzak.css"]) ();
-	])
-    (Html5.D.body [
-       Html5.D.div ~a:[] [canvas_elt]])
-  in
-  Lwt.return page
 
 }}
