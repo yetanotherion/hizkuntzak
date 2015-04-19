@@ -159,7 +159,11 @@ let conjugate_nor_nori_present param =
   in
   let ending =
     match nori with
-      | `Niri -> "t"
+      | `Niri -> begin
+        match nor with
+          | `Zuek -> "da"
+          | `Ni | `Hi | `Hura | `Gu | `Zu | `Haiek -> "t"
+      end
       | `Hiri `Male -> "k"
       | `Hiri `Female -> "n"
       | `Hari -> "o"
