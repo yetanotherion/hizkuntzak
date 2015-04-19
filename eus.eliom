@@ -187,7 +187,7 @@ module IndicativePastPresentClient = struct
   include IndicativePastPresentShared
 
   module E = Eus_aditzak
-  type supported_help = [`NorNorkPresent]
+  type supported_help = [`NorNorkPresent | `NorNoriPresent]
   type help_t = (supported_help * E.animation) option
   type helper = (help_t, question) Games._helper
 
@@ -197,6 +197,7 @@ module IndicativePastPresentClient = struct
       | Some (mode, t) ->
         match mode with
           | `NorNorkPresent -> E.NorNorkAnimation.stop_animation t
+          | `NorNoriPresent -> E.NorNoriAnimation.stop_animation t
 
   let create_help_button refocus_after_click t f =
     let play_help = Games.create_button `Info "Show me how it works" in
@@ -227,12 +228,20 @@ module IndicativePastPresentClient = struct
     let not_available = None, [Html5.To_dom.of_element help_no_available] in
     match mode with
       | `Nor _ -> not_available
-      | `NorNori _ -> not_available
-      | `NorNork norNork -> match time with
+      | `NorNori norNori -> begin
+        match time with
+          | `Past -> not_available
+          | `Present ->
+            let open E.NorNoriAnimation in
+            create_and_setup refocus_after_click create_animation start_animation norNori `NorNoriPresent
+      end
+      | `NorNork norNork -> begin
+        match time with
           | `Past -> not_available
           | `Present ->
             let open E.NorNorkAnimation in
             create_and_setup refocus_after_click create_animation start_animation norNork `NorNorkPresent
+      end
 
   let get_help refocus_after_click =
     Some {

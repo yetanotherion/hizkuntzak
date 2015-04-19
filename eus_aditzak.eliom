@@ -204,9 +204,14 @@ module Text = struct
      y=y}
 end
 
-let split_rectangle rectangle ncolumns nlines =
+(* XXX but in split_rectangle *)
+let split_rectangle ?add_plus:(a=true) rectangle ncolumns nlines =
   let columns_width = rectangle.width /. (float_of_int ncolumns) in
-  let line_height = rectangle.height /. (float_of_int (nlines + 1)) in
+  let divide_height =
+    if a then nlines + 1
+    else nlines
+  in
+  let line_height = rectangle.height /. (float_of_int divide_height) in
   let xidxl = range 0 ncolumns in
   let yidxl = range 0 nlines in
   let f_x = idx_to_y_label rectangle.start_x columns_width in
@@ -258,10 +263,15 @@ let compute_line_move ?nb_of_steps:(ns=200) src dst =
   List.map (fun x -> {x=x;
                       y=Line.y_axis line x}) (xrange src dst ns)
 
-let compute_line_animation ?nb_of_steps:(ns=200) wait_before_move t table blocks =
+let compute_line_animation ?middle:(m=None) ?nb_of_steps:(ns=200) wait_before_move t table blocks =
   let ctx = get_context t in
-  let middle = {x=t.zone.width /. 2.0;
-                y=t.zone.height /. 2.0} in
+  let middle =
+    match m with
+      | None -> {x=t.zone.width /. 2.0;
+                 y=t.zone.height /. 2.0}
+      | Some mid -> mid
+  in
+
   let get_elt_length ctx elt =
     Text.message_x_length ctx elt.text.Text.text
   in
@@ -321,6 +331,64 @@ let compute_jump ?nb_of_steps:(ns=200) ?number_of_jumps:(nj=2) t table elt dest 
   in
   elt.next_position <- res
 
+let nor_to_idx nor =
+  match nor with
+    | `Ni -> 1
+    | `Hi -> 2
+    | `Hura -> 3
+    | `Gu -> 4
+    | `Zu -> 5
+    | `Zuek -> 6
+    | `Haiek -> 7
+
+
+let nork_to_idx nork =
+  match nork with
+    | `Nik -> 1
+    | `Hik _ -> 2
+    | `Hark -> 3
+    | `Guk -> 4
+    | `Zuk -> 5
+    | `Zuek -> 6
+    | `Haiek -> 7
+
+let nori_to_idx nori =
+  match nori with
+    | `Niri -> 1
+    | `Hiri _ -> 2
+    | `Hari -> 3
+    | `Guri -> 4
+    | `Zuri -> 5
+    | `Zuei -> 6
+    | `Haiei -> 7
+
+let cs x = ([x], `Start)
+let ce x = ([x], `End)
+let cc x = ([x], `Center)
+let ceL x = (x, `End)
+
+let elts_to_animation p rectangles t elts =
+  let ctx = get_context t in
+  List.map2 (fun line_rect line_elts ->
+    List.map2 (fun rect locElts ->
+      let (elts, loc) = locElts in
+      let all_elt_string = List.fold_left (fun accum x -> accum ^ x) "" elts in
+      let size = Text.size_text ctx p rect all_elt_string in
+      let position = Text.get_position_in_rectangle ctx rect
+        (Text.create ~x_location:loc p size all_elt_string)
+      in
+      let _, all_elts = List.fold_left
+        (fun (current_position, accum) message ->
+          let curr_text = Text.create ~x_location:loc p size message in
+          let curr_elt = create_elt current_position curr_text in
+          let end_position = end_of_text_position t curr_elt in
+          (end_position, curr_elt :: accum)) (position, []) elts
+      in
+      List.rev all_elts)
+      line_rect line_elts)
+    rectangles elts
+
+
 module NorNork = struct
   let nb_of_rectangles = 10
 
@@ -359,55 +427,10 @@ module NorNork = struct
                 [cs "ZUEK"; cs "ZAITUZTE"; ce "ZUE"; ce "ZUEK"];
                 [cs "HAIEK"; cs "DITU"; ceL ["("; "Z"; ")*"; "TE"]; ce "HAIEK"];
                 [cs ""; cs ""; ceL ["*: NOR="; "GU"; ","; "ZU"; ","; "HAIEK"]; ce ""]] in
-    let ctx = get_context t in
-    List.map2 (fun line_rect line_elts ->
-      List.map2 (fun rect locElts ->
-        let (elts, loc) = locElts in
-        let all_elt_string = List.fold_left (fun accum x -> accum ^ x) "" elts in
-        let size = Text.size_text ctx p rect all_elt_string in
-        let position = Text.get_position_in_rectangle ctx rect
-          (Text.create ~x_location:loc p size all_elt_string)
-        in
-        let _, all_elts = List.fold_left
-          (fun (current_position, accum) message ->
-            let curr_text = Text.create ~x_location:loc p size message in
-            let curr_elt = create_elt current_position curr_text in
-            let end_position = end_of_text_position t curr_elt in
-            (end_position, curr_elt :: accum)) (position, []) elts
-        in
-        List.rev all_elts)
-        line_rect line_elts)
-      rectangles elts
-
-  let draw t text =
-    let () = reset t in
-    let () = draw_tabular t in
-    draw_text t text
+    elts_to_animation p rectangles t elts
 
   let get_elements_to_move table norNork =
     let nor, nork = norNork in
-
-    let nor_to_idx nor =
-      match nor with
-        | `Ni -> 1
-        | `Hi -> 2
-        | `Hura -> 3
-        | `Gu -> 4
-        | `Zu -> 5
-        | `Zuek -> 6
-        | `Haiek -> 7
-    in
-
-    let nork_to_idx nork =
-      match nork with
-        | `Nik -> 1
-        | `Hik _ -> 2
-        | `Hark -> 3
-        | `Guk -> 4
-        | `Zuk -> 5
-        | `Zuek -> 6
-        | `Haiek -> 7
-    in
 
     let get_nor_element_in_table nor =
       List.hd (List.nth (List.nth table (nor_to_idx nor)) 0)
@@ -488,6 +511,124 @@ module NorNork = struct
           }
 end
 
+module NorNori = struct
+  let nb_of_rectangles = 9
+
+  type param = Questions.nor * Questions.nori
+
+(*
+  nb_rectangle: 2
+  . 0: size = 4 / 2
+  . 1
+*)
+
+  let draw_tabular t =
+    let one_rectangle_size = t.zone.height /. (float_of_int nb_of_rectangles) in
+    let end_of_rectangle = t.zone.height in
+    let zone = create_rect 0.0 0.0 end_of_rectangle t.zone.width in
+    (* we draw the rectangles *)
+    let () = alternate_horizontal_rectangles_in_rect_zone t zone nb_of_rectangles in
+    (* and three horizontal lines as delimiter *)
+    let to_y_labels = rect_idx_to_y_label 0.0 one_rectangle_size in
+    draw_horizontal_lines_in_rect_zone t t.zone ((to_y_labels [0; 1]) @ [t.zone.height])
+
+  let create ?police_name:(p="serif") t =
+    let rectangles = split_rectangle ~add_plus:false t.zone 4 nb_of_rectangles in
+    let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORI"];
+                [cs "NI"; cs "NATZAI"; ceL ["T"; "*("; "DATE"; ")"]; ce "NIRI"];
+                [cs "HI"; cs "HATZAI"; ceL ["K"; "/"; "N"]; ce "HIRI"];
+                [cs "HURA"; cs "ZAI"; ceL ["O"; "*(+"; "TE"; ")"]; ce "HARI"];
+                [cs "GU"; cs "GATZAIZKI"; ceL ["GU"; "*(+"; "TE"; ")"]; ce "GURI" ];
+                [cs "ZU"; cs "ZATZAIZKI"; ceL ["ZU"; "*(+"; "TE"; ")"]; ce "ZURI" ];
+                [cs "ZUEK"; cs "ZATZAIZKI"; ceL ["ZUE"; "*(+"; "TE"; ")"]; ce "ZUEI"];
+                [cs "HAIEK"; cs "ZAIZKI"; ceL ["E"; "*(+"; "TE"; ")"]; ce "HAIEI"];
+                [cs "" ; cs ""; ceL ["*: NOR="; "ZUEK"]; cs ""]] in
+    elts_to_animation p rectangles t elts
+
+  let get_elements_to_move table norNori =
+    let nor, nori = norNori in
+
+    let get_nor_element_in_table nor =
+      List.hd (List.nth (List.nth table (nor_to_idx nor)) 0)
+    in
+
+    let get_nor_verb_part_element_in_table nor =
+      List.hd (List.nth (List.nth table (nor_to_idx nor)) 1)
+    in
+
+    let get_nori_verb_parts_in_table nori =
+      List.nth (List.nth table (nori_to_idx nori)) 2
+    in
+
+    let get_nori_verb_part_in_table nor nori =
+      let elt = get_nori_verb_parts_in_table nori in
+      match nori with
+        | `Niri -> begin match nor with
+            | `Zuek -> List.nth elt 2
+            | `Ni | `Hi | `Hura | `Gu | `Zu | `Haiek -> List.hd elt
+        end
+        | `Hari | `Guri | `Zuri | `Zuei | `Hiri `Male | `Haiei ->
+          List.hd elt
+        | `Hiri `Female -> List.nth elt 2
+    in
+
+    let get_nori_element_in_table nori =
+      List.hd (List.nth (List.nth table (nori_to_idx nori)) 3)
+    in
+
+    let nor_sure =
+      get_nor_element_in_table nor,
+      get_nor_verb_part_element_in_table nor
+    in
+
+    let nori_sure =
+      get_nori_element_in_table nori,
+      get_nori_verb_part_in_table nor nori
+    in
+
+    let zuek_optional_part = List.nth (List.nth (List.nth table 8) 2) 1 in
+    let nor_optional =
+      match nor with
+        | `Ni | `Hi | `Hura | `Gu | `Zu | `Haiek -> None
+        | `Zuek -> begin
+          match nori with
+            | `Niri | `Hiri _ -> None
+            | `Hari | `Zuri | `Zuei | `Guri | `Haiei -> Some (zuek_optional_part,
+                                                              List.nth (get_nori_verb_parts_in_table nori) 2)
+        end
+    in
+    nor_sure, nori_sure, nor_optional
+
+  let set_animation ?nb_of_steps:(ns=100) ?max_num_of_jumps:(mnj=2) t table norNori =
+    let (nor, nor_verb), (nori, nori_verb), nor_optional = get_elements_to_move table norNori in
+    let steps_until_touching_verb_parts = ns / 2 in
+    let line_animation_l =
+      match nor_optional with
+        | None -> [nor_verb; nori_verb]
+        | Some (_, te) -> [nor_verb; nori_verb; te]
+    in
+    let middle = {x=t.zone.width /. 2.0 +. (t.zone.width /. 20.0) ;
+                  y=t.zone.height /. 2.0 -. (t.zone.height /. (float_of_int nb_of_rectangles)) } in
+    let () = compute_line_animation ~middle:(Some middle) ~nb_of_steps:ns steps_until_touching_verb_parts t table line_animation_l in
+    let nor_end = (end_of_text_position t nor) in
+    let nor_length = nor_end.x -. nor.position.x in
+    let num_of_jumps = (Random.int mnj) + 1 in
+    let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                          ~number_of_jumps:num_of_jumps
+                          t table nor {x=nor_verb.position.x -. nor_length;
+                                      y=nor_verb.position.y} in
+    let () = compute_jump ~nb_of_steps:steps_until_touching_verb_parts
+                          ~number_of_jumps:num_of_jumps
+                          t table nori (end_of_text_position t nori_verb) in
+    match nor_optional with
+      | None -> ()
+      | Some (nor_star, te) ->
+        nor_star.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
+          nor_star.position
+          {x=te.position.x;
+           y=te.position.y +. (Text.message_height nor_star.text);
+          }
+end
 
 type table = elt list list list
 
@@ -500,7 +641,7 @@ type animation = {
 module type Table = sig
   type param
   val create: ?police_name:string -> t -> table
-  val draw: t -> table -> unit
+  val draw_tabular: t -> unit
   val set_animation: ?nb_of_steps:int -> ?max_num_of_jumps:int -> t -> table -> param -> unit
 end
 
@@ -523,14 +664,20 @@ module MakeAnimation (T:Table) = struct
       let slow_down_factor = int_of_float (100.0 /. float_of_int t.nb_times_animation_is_run) in
       Pervasives.min max_nb_steps (100 + slow_down_factor)
 
+  let draw t text =
+    let () = reset t in
+    let () = T.draw_tabular t in
+    draw_text t text
+
   let create_animation height width canvas_elt =
     let () = Random.self_init () in
     let t = create height width canvas_elt in
     let table = T.create t in
-    let () = T.draw t table in
+    let () = draw t table in
     {canvas=t;
      table=table;
      nb_times_animation_is_run=0}
+
 
   let start_animation t param =
     let () = T.set_animation ~nb_of_steps:(compute_nb_of_animation_steps t) t.canvas t.table param in
@@ -539,13 +686,14 @@ module MakeAnimation (T:Table) = struct
     in
     while_lwt t.canvas.run do
       lwt () = Lwt_js_events.request_animation_frame () in
-      let () = T.draw t.canvas t.table in
+      let () = draw t.canvas t.table in
       Lwt.return_unit
     done
 
   let stop_animation t = t.canvas.run <- false
- end
+end
 
 module NorNorkAnimation = MakeAnimation (NorNork)
+module NorNoriAnimation = MakeAnimation (NorNori)
 
 }}
