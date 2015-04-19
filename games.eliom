@@ -43,7 +43,7 @@ module GameHtmlElements = struct
     result_div: ([> Html5_types.div ] as 'div) Eliom_content.Html5.D.elt;
     nquestions_input: ([> Html5_types.select ] as 'select) Eliom_content.Html5.D.elt;
     start_game_button: ([> Html5_types.button ] as 'button) Eliom_content.Html5.D.elt;
-    ok_game_button: ([> Html5_types.button ] as 'button) Eliom_content.Html5.D.elt;
+    answer_button: ([> Html5_types.button ] as 'button) Eliom_content.Html5.D.elt;
     restart_game_button: ([> Html5_types.button ] as 'button) Eliom_content.Html5.D.elt;
     help_inputs: ('div, 'button) help option;
     other_inputs: ([> Html5_types.select ] as 'select) Eliom_content.Html5.D.elt list;
@@ -168,7 +168,7 @@ struct
   type inputs = {
     nb_questions_input: Dom_html.selectElement Js.t;
     start_game: Dom_html.buttonElement Js.t;
-    ok_game: Dom_html.buttonElement Js.t;
+    answer: Dom_html.buttonElement Js.t;
     restart_game: Dom_html.buttonElement Js.t;
     other_inputs: other_inputs;
   }
@@ -176,7 +176,7 @@ struct
   let create_inputs nb_questions_input start_button ok_button restart_button other_inputs = {
     nb_questions_input = nb_questions_input;
     start_game = start_button;
-    ok_game = ok_button;
+    answer = ok_button;
     restart_game = restart_button;
     other_inputs = other_inputs;
   }
@@ -192,7 +192,7 @@ struct
     async (fun () ->
       clicks t.restart_game on_restart_game_clicks);
     async (fun () ->
-      clicks t.ok_game on_answer_clicks)
+      clicks t.answer on_answer_clicks)
 
   type help_inputs = {
     help_div: Dom_html.divElement Js.t;
@@ -317,7 +317,7 @@ struct
     display_current_mode t
 
   let start_game t =
-    let () = Utils.show_element t.game_params.ok_game in
+    let () = Utils.show_element t.game_params.answer in
     let nb_questions, others = get_input_params t.game_params in
     let () = t.current_game <- Some (GC.create others) in
     t.current_score <- Some (Score.create nb_questions)
@@ -325,7 +325,7 @@ struct
   let display_result t score =
     let () = Html5.Manip.replaceChildren t.result_div [pcdata (Score.to_string score)] in
     let () = Utils.hidde_element t.answer_input in
-    let () = Utils.hidde_element t.game_params.ok_game in
+    let () = Utils.hidde_element t.game_params.answer in
     Html5.Manip.replaceChildren t.question_board []
 
   let handle_answer t =
@@ -429,14 +429,14 @@ struct
       result_div
       nquestion_input
       start_game_button
-      ok_game_button
+      answer_button
       restart_game_button
       help_inputs
       other_inputs =
     let game_mode = create_inputs
       (Html5.To_dom.of_select nquestion_input)
       (Html5.To_dom.of_button start_game_button)
-      (Html5.To_dom.of_button ok_game_button)
+      (Html5.To_dom.of_button answer_button)
       (Html5.To_dom.of_button restart_game_button)
       (Array.map Html5.To_dom.of_select other_inputs) in
     let t = create qb answer_input answer_output game_mode start_game_div game_ongoing_div result_div help_inputs in
@@ -484,11 +484,11 @@ module MakeServer (GC:ServerGameConf) = struct
                               ul (List.map (fun (x, input) -> li [pcdata x; input])
                                     (nquestions :: others));
                               div [start_game_button]] in
-    let ok_game_button = create_button `Danger "Answer" in
+    let answer_button = create_button `Danger "Answer" in
     let restart_game_button = create_button `Success "Restart" in
     let answer_output = div [] in
     let result_div = div [] in
-    let game_ongoing_l = [question_board; answer_input; answer_output; result_div; ok_game_button; restart_game_button] in
+    let game_ongoing_l = [question_board; answer_input; answer_output; result_div; answer_button; restart_game_button] in
     let open GameHtmlElements in
     let create_help d b ob = {help_div = d;
                               help_button = b;
@@ -514,7 +514,7 @@ module MakeServer (GC:ServerGameConf) = struct
      result_div = result_div;
      nquestions_input = nquestions_input;
      start_game_button = start_game_button;
-     ok_game_button = ok_game_button;
+     answer_button = answer_button;
      restart_game_button = restart_game_button;
      help_inputs = h;
      other_inputs = other_inputs}

@@ -285,7 +285,7 @@ let service u u_bis =
       inputs.result_div
       inputs.nquestions_input
       inputs.start_game_button
-      inputs.ok_game_button
+      inputs.answer_button
       inputs.restart_game_button
       inputs.help_inputs
       other_inputs
