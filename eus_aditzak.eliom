@@ -204,14 +204,9 @@ module Text = struct
      y=y}
 end
 
-(* XXX but in split_rectangle *)
-let split_rectangle ?add_plus:(a=true) rectangle ncolumns nlines =
+let split_rectangle rectangle ncolumns nlines =
   let columns_width = rectangle.width /. (float_of_int ncolumns) in
-  let divide_height =
-    if a then nlines + 1
-    else nlines
-  in
-  let line_height = rectangle.height /. (float_of_int divide_height) in
+  let line_height = rectangle.height /. (float_of_int nlines) in
   let xidxl = range 0 ncolumns in
   let yidxl = range 0 nlines in
   let f_x = idx_to_y_label rectangle.start_x columns_width in
@@ -390,7 +385,7 @@ let elts_to_animation p rectangles t elts =
 
 
 module NorNork = struct
-  let nb_of_rectangles = 10
+  let nb_of_rectangles = 9
 
   type param = Questions.nor * Questions.nork
 
@@ -413,7 +408,7 @@ module NorNork = struct
     draw_horizontal_lines_in_rect_zone t t.zone (to_y_labels [0; 1; 11])
 
   let create ?police_name:(p="serif") t =
-    let rectangles = split_rectangle t.zone 4 (nb_of_rectangles - 1) in
+    let rectangles = split_rectangle t.zone 4 nb_of_rectangles in
     let cs x = ([x], `Start) in
     let ce x = ([x], `End) in
     let ceL x = (x, `End) in
@@ -516,12 +511,6 @@ module NorNori = struct
 
   type param = Questions.nor * Questions.nori
 
-(*
-  nb_rectangle: 2
-  . 0: size = 4 / 2
-  . 1
-*)
-
   let draw_tabular t =
     let one_rectangle_size = t.zone.height /. (float_of_int nb_of_rectangles) in
     let end_of_rectangle = t.zone.height in
@@ -533,7 +522,7 @@ module NorNori = struct
     draw_horizontal_lines_in_rect_zone t t.zone ((to_y_labels [0; 1]) @ [t.zone.height])
 
   let create ?police_name:(p="serif") t =
-    let rectangles = split_rectangle ~add_plus:false t.zone 4 nb_of_rectangles in
+    let rectangles = split_rectangle t.zone 4 nb_of_rectangles in
     let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORI"];
                 [cs "NI"; cs "NATZAI"; ceL ["T"; "*("; "DATE"; ")"]; ce "NIRI"];
                 [cs "HI"; cs "HATZAI"; ceL ["K"; "/"; "N"]; ce "HIRI"];
