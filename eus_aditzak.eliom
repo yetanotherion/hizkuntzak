@@ -154,8 +154,12 @@ module Text = struct
   let message_height t =
     (float_of_int t.size_in_pixel) /. 2.0
 
-  let write ctx t p =
-    let () = set_police ctx t.size_in_pixel t.police in
+  let write ?size_in_pixel:(sp=None) ctx t p =
+    let ps = match sp with
+      | None -> t.size_in_pixel
+      | Some p -> p
+    in
+    let () = set_police ctx ps t.police in
     ctx##fillText(Js.string t.text, p.x, p.y)
 
   let get_x_axis axis_start axis_end location text_width =
@@ -218,11 +222,22 @@ let split_rectangle rectangle ncolumns nlines =
                            height=line_height;
                            width=columns_width}) xidxl) yidxl
 
+type animation_param = {
+  animation_point: point;
+  size_in_pixel: int option;
+}
+
+let write_animation t text_str animation_param =
+  Text.write
+    ~size_in_pixel:animation_param.size_in_pixel
+    (get_context t) text_str animation_param.animation_point
+
 type elt = {
   position: point;
   text: Text.t;
-  mutable next_position: point list;
+  mutable next_position: animation_param list;
 }
+
 
 let create_elt position text = {position=position;
                                 text=text;
@@ -236,11 +251,12 @@ let end_of_text_position t elt =
 let draw_text_element t text_element =
   let position, next_position =
     match text_element.next_position with
-      | [] -> text_element.position, []
+      | [] -> {animation_point=text_element.position;
+               size_in_pixel=None}, []
       | hd :: tl -> hd, tl
   in
   let () = text_element.next_position <- next_position in
-  Text.write (get_context t) text_element.text position
+  write_animation t text_element.text position
 
 let draw_text t text_table =
   let ctx = get_context t in
