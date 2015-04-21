@@ -22,6 +22,14 @@ let must x =
   match x with
     | None -> assert(false)
     | Some x -> x
+
+let max_of_non_empty_list l =
+  List.fold_left
+    (fun accum elt ->
+      Pervasives.max accum elt)
+    (List.hd l)
+    (List.tl l)
+
 }}
 
 {server{
@@ -37,7 +45,6 @@ let create_bootstrap_head () =
   [utf8_meta;
    viewport_meta;
    stylesheet] @ js_scripts
-
 }}
 
 {client{
@@ -52,5 +59,4 @@ let create_bootstrap_head () =
   let show_element elt =
     if (Js.to_bool (elt##classList##contains(Js.string "hidden")))
     then elt##classList##remove(Js.string "hidden")
-
 }}

@@ -134,6 +134,8 @@ module Text = struct
       size_in_pixel = size;
       text = text; }
 
+  let get_pixel_size t = t.size_in_pixel
+
   let message_x_length ctx string =
     let m = ctx##measureText(Js.string string) in
     m##width
@@ -227,10 +229,33 @@ type animation_param = {
   size_in_pixel: int option;
 }
 
+let from_point point = {
+  animation_point = point;
+  size_in_pixel = None;
+}
+
 let write_animation t text_str animation_param =
   Text.write
     ~size_in_pixel:animation_param.size_in_pixel
     (get_context t) text_str animation_param.animation_point
+
+let animation_without_changing_police_size position =
+  { animation_point = position;
+    size_in_pixel = None}
+
+let distribute_pixel_tranformation src_pixel end_pixel ns =
+  let delta = end_pixel - src_pixel in
+  let remaining = delta mod ns in
+  let delta_per_step = (delta - remaining) / ns in
+  let remaining = delta - delta_per_step in
+  List.map (fun i ->
+    if (i = ns - 1) then end_pixel
+    else
+      let curr_pixel = src_pixel + (delta_per_step * i) in
+      if i < remaining then curr_pixel + 1
+      else curr_pixel
+  ) (range 0 ns)
+
 
 type elt = {
   position: point;
@@ -238,6 +263,11 @@ type elt = {
   mutable next_position: animation_param list;
 }
 
+let get_elt_pixel_size elt = Text.get_pixel_size elt.text
+
+let from_elt elt =
+  {animation_point = elt.position;
+   size_in_pixel = None}
 
 let create_elt position text = {position=position;
                                 text=text;
@@ -266,8 +296,8 @@ let draw_text t text_table =
       List.iter (fun x -> draw_text_element t x) l) l)
     text_table
 
-let repeat_move position ns =
-  List.fold_left (fun accum _ -> position :: accum) [] (range 0 ns)
+let repeat_move ap ns =
+  List.fold_left (fun accum _ -> ap :: accum) [] (range 0 ns)
 
 let compute_line_move ?nb_of_steps:(ns=200) src dst =
   let line = Line.create src dst in
@@ -275,6 +305,7 @@ let compute_line_move ?nb_of_steps:(ns=200) src dst =
                       y=Line.y_axis line x}) (xrange src dst ns)
 
 let compute_line_animation ?middle:(m=None) ?nb_of_steps:(ns=200) wait_before_move t table blocks =
+  let pixel_size_in_dest = Utils.max_of_non_empty_list (List.map get_elt_pixel_size blocks) in
   let ctx = get_context t in
   let middle =
     match m with
@@ -294,15 +325,27 @@ let compute_line_animation ?middle:(m=None) ?nb_of_steps:(ns=200) wait_before_mo
     let last = List.hd (List.rev move) in
     move @ (repeat_move last ns)
   in
-  let compute_move elt dst =
-    let start = repeat_move elt.position wait_before_move in
-    stay_after_last_move (start @ (compute_line_move ~nb_of_steps:ns elt.position dst))
+  let compute_move src dst =
+    let src_position = src.position in
+    let src_pixel_size = get_elt_pixel_size src in
+    let start = repeat_move (from_point src_position) wait_before_move in
+    let line_position_move = compute_line_move ~nb_of_steps:ns src_position dst in
+    let line_move =
+      List.map2 (fun pixel position ->
+        {animation_point = position;
+         size_in_pixel = Some pixel})
+        (distribute_pixel_tranformation src_pixel_size pixel_size_in_dest ns)
+        line_position_move
+    in
+    stay_after_last_move (start @ line_move)
   in
   let () = start.next_position <- compute_move start start_destination in
   let _, src_dest = List.fold_left (fun (previous_end, accum) elt ->
     let next_dest = {x=previous_end.x +. (get_elt_length ctx elt);
                      y=middle.y} in
-    (next_dest, (elt, compute_move elt previous_end) :: accum)) (middle, []) (List.tl blocks)
+    (next_dest,
+     (elt, compute_move elt previous_end) :: accum))
+    (middle, []) (List.tl blocks)
   in
   let src_dest = List.rev src_dest in
   let () = List.iter (fun (elt, move) ->
@@ -337,7 +380,7 @@ let compute_jump ?nb_of_steps:(ns=200) ?number_of_jumps:(nj=2) t table elt dest 
                  y=src.y} in
       let dest = {x=dest_x;
                   y=dest.y} in
-      let curr_jump = compute_one_rebound ~nb_of_steps:nb_of_steps t table src dest in
+      let curr_jump = List.map from_point (compute_one_rebound ~nb_of_steps:nb_of_steps t table src dest) in
       List.append accum curr_jump) [] src_dest
   in
   elt.next_position <- res
@@ -431,7 +474,7 @@ module NorNork = struct
 
     let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORK"];
                 [cs "NI"; cs "NAU"; ce "T"; ce "NIK"];
-                [cs "HI"; cs "HAU"; ceL ["K"; "/"; "N"]; ce "HIK"];
+                [cs "HI"; cs "HAU"; ceL ["K"; "(male)/"; "N"; "(female)"]; ce "HIK"];
                 [cs "HURA"; cs "DU"; ce "-"; ce "HARK"];
                 [cs "GU"; cs "GAITU"; ce "GU"; ce "GUK"];
                 [cs "ZU"; cs "ZAITU"; ce "ZU"; ce "ZUK"];
@@ -500,7 +543,6 @@ module NorNork = struct
         | None -> [nor_verb; nork_verb]
         | Some (_, z) -> [nor_verb; z; nork_verb]
     in
-
     let () = compute_line_animation ~nb_of_steps:ns steps_until_touching_verb_parts t table line_animation_l in
     let nor_end = (end_of_text_position t nor) in
     let nor_length = nor_end.x -. nor.position.x in
@@ -515,11 +557,11 @@ module NorNork = struct
     match nor_optional with
       | None -> ()
       | Some (nor_star, z) ->
-        nor_star.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
+        nor_star.next_position <- List.map from_point (compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
           nor_star.position
           {x=z.position.x;
            y=z.position.y +. (Text.message_height nor_star.text);
-          }
+          })
 end
 
 module NorNori = struct
@@ -541,7 +583,7 @@ module NorNori = struct
     let rectangles = split_rectangle t.zone 4 nb_of_rectangles in
     let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORI"];
                 [cs "NI"; cs "NATZAI"; ceL ["T"; "*("; "DATE"; ")"]; ce "NIRI"];
-                [cs "HI"; cs "HATZAI"; ceL ["K"; "/"; "N"]; ce "HIRI"];
+                [cs "HI"; cs "HATZAI"; ceL ["K"; "(male)/"; "N"; "(female)"]; ce "HIRI"];
                 [cs "HURA"; cs "ZAI"; ceL ["O"; "*(+"; "TE"; ")"]; ce "HARI"];
                 [cs "GU"; cs "GATZAIZKI"; ceL ["GU"; "*(+"; "TE"; ")"]; ce "GURI" ];
                 [cs "ZU"; cs "ZATZAIZKI"; ceL ["ZU"; "*(+"; "TE"; ")"]; ce "ZURI" ];
@@ -628,11 +670,11 @@ module NorNori = struct
     match nor_optional with
       | None -> ()
       | Some (nor_star, te) ->
-        nor_star.next_position <- compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
+        nor_star.next_position <- List.map from_point (compute_line_move ~nb_of_steps:steps_until_touching_verb_parts
           nor_star.position
           {x=te.position.x;
            y=te.position.y +. (Text.message_height nor_star.text);
-          }
+          })
 end
 
 type table = elt list list list
