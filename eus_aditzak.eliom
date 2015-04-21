@@ -245,15 +245,21 @@ let animation_without_changing_police_size position =
 
 let distribute_pixel_tranformation src_pixel end_pixel ns =
   let delta = end_pixel - src_pixel in
+  let () = Utils.log (Printf.sprintf "delta: %d" delta) in
   let remaining = delta mod ns in
+  let () = Utils.log (Printf.sprintf "remaining: %d" remaining) in
   let delta_per_step = (delta - remaining) / ns in
+  let () = Utils.log (Printf.sprintf "per_step:%d" delta_per_step) in
   let remaining = delta - delta_per_step in
   List.map (fun i ->
     if (i = ns - 1) then end_pixel
     else
-      let curr_pixel = src_pixel + (delta_per_step * i) in
-      if i < remaining then curr_pixel + 1
-      else curr_pixel
+      let res =
+        let curr_pixel = src_pixel + (delta_per_step * i) in
+        if i < remaining then begin let () = Utils.log "hemen" in curr_pixel + 1 end
+        else curr_pixel
+      in
+      res
   ) (range 0 ns)
 
 
@@ -583,7 +589,7 @@ module NorNori = struct
     let rectangles = split_rectangle t.zone 4 nb_of_rectangles in
     let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORI"];
                 [cs "NI"; cs "NATZAI"; ceL ["T"; "*("; "DATE"; ")"]; ce "NIRI"];
-                [cs "HI"; cs "HATZAI"; ceL ["K"; "(male)/"; "N"; "(female)"]; ce "HIRI"];
+                [cs "HI"; cs "HATZAI"; ceL ["K"; "*("; "A"; ")(male)/"; "N"; "*("; "NA"; ")(female)"]; ce "HIRI"];
                 [cs "HURA"; cs "ZAI"; ceL ["O"; "*(+"; "TE"; ")"]; ce "HARI"];
                 [cs "GU"; cs "GATZAIZKI"; ceL ["GU"; "*(+"; "TE"; ")"]; ce "GURI" ];
                 [cs "ZU"; cs "ZATZAIZKI"; ceL ["ZU"; "*(+"; "TE"; ")"]; ce "ZURI" ];
@@ -614,9 +620,18 @@ module NorNori = struct
             | `Zuek -> List.nth elt 2
             | `Ni | `Hi | `Hura | `Gu | `Zu | `Haiek -> List.hd elt
         end
-        | `Hari | `Guri | `Zuri | `Zuei | `Hiri `Male | `Haiei ->
+        | `Hari | `Guri | `Zuri | `Zuei | `Haiei ->
           List.hd elt
-        | `Hiri `Female -> List.nth elt 2
+        | `Hiri `Male -> begin
+          match nor with
+            | `Zuek -> List.nth elt 2
+            | `Ni | `Hi | `Hura | `Gu | `Zu | `Haiek -> List.hd elt
+        end
+        | `Hiri `Female -> begin
+          match nor with
+            | `Zuek -> List.nth elt 6
+            | `Ni | `Hi | `Hura | `Gu | `Zu | `Haiek -> List.nth elt 4
+        end
     in
 
     let get_nori_element_in_table nori =
