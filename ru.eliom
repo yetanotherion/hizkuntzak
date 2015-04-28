@@ -13,23 +13,28 @@
 (*  implied.  See the License for the specific language governing         *)
 (*  permissions and limitations under the License.                        *)
 (**************************************************************************)
+
 {shared{
 
 module Greeting = struct
   type t = [ `Hello
-           | `VeryGood ]
+           | `GoodAdverb
+           | `GoodAdjective
+           ]
 
-  let values = [`Hello; `VeryGood]
+  let values = [`Hello; `GoodAdverb; `GoodAdjective]
 
   let to_english x =
     match x with
       | `Hello -> "hello"
-      | `VeryGood -> "very good"
+      | `GoodAdverb -> "very good (adverb)"
+      | `GoodAdjective -> "very good (adjective)"
 
   let to_russian x =
     match x with
       | `Hello -> "привет"
-      | `VeryGood -> "хорошо"
+      | `GoodAdverb -> "хорошо"
+      | `GoodAdjective -> "хороший"
 end
 
 module Geography = struct
@@ -75,8 +80,9 @@ module FoodAndDrink = struct
   type t = [`Beer
            | `Wine
            | `Kitchen
-           | `CoffeeHouse]
-  let values = [`Beer; `Wine; `Kitchen; `CoffeeHouse]
+           | `CoffeeHouse
+           | `Rice]
+  let values = [`Beer; `Wine; `Kitchen; `CoffeeHouse; `Rice]
 
   let to_english x =
     match x with
@@ -84,6 +90,7 @@ module FoodAndDrink = struct
       | `Wine -> "wine"
       | `Kitchen -> "kitchen"
       | `CoffeeHouse -> "coffee house"
+      | `Rice -> "rice"
 
   let to_russian x =
     match x with
@@ -91,6 +98,7 @@ module FoodAndDrink = struct
       | `Wine -> "вино"
       | `Kitchen -> "кухня"
       | `CoffeeHouse -> "кафе"
+      | `Rice -> "рис"
 end
 
 module Transport = struct
@@ -108,7 +116,7 @@ module Transport = struct
   let to_russian x =
     match x with
       | `Tram -> "трамвай"
-      | `Car -> "автомобилъ"
+      | `Car -> "автомобиль"
       | `Taxi -> "такси"
 end
 
@@ -185,6 +193,53 @@ module PeopleFunction = struct
       | `Tourist -> "турист"
 
 end
+
+module Verb = struct
+  type t = [`Hope | `Cook | `See | `Play | `Want]
+  let values = [`Hope; `Cook; `See; `Play; `Want]
+  let to_english x =
+    let res =
+      match x with
+      | `Hope -> "hope"
+      | `Cook -> "cook"
+      | `See -> "see"
+      | `Play -> "play"
+      | `Want -> "want"
+    in
+    "to " ^ res
+
+  let to_russian x =
+    match x with
+    | `Hope -> "надеяться"
+    | `Cook -> "готовить"
+    | `See -> "видеть"
+    | `Want -> "хотеть"
+    | `Play -> "играть"
+end
+
+module Time = struct
+  type t = [`Today | `Afternoon ]
+  let values = [ `Today; `Afternoon ]
+  let to_english x =
+    match x with
+    | `Today -> "today"
+    | `Afternoon -> "afternoon"
+  let to_russian x =
+    match x with
+    | `Today -> "сегодня"
+    | `Afternoon -> "после обеда"
+end
+
+module Numbers = struct
+  type t = [`Quarter]
+  let values = [`Quarter]
+  let to_english x =
+    match x with
+    | `Quarter -> "quarter"
+  let to_russian x =
+    match x with
+    | `Quarter -> "четверть"
+end
 module SharedDictionary = struct
   let title = "dictionary"
   let description = "Improve your dictionary"
@@ -203,7 +258,11 @@ module SharedDictionary = struct
                   | `Building of Building.t
                   | `HouseFurniture of HouseAndFurniture.t
                   | `Nature of Nature.t
-                  | `PeopleFunction of PeopleFunction.t ]
+                  | `PeopleFunction of PeopleFunction.t
+                  | `Verb of Verb.t
+                  | `Time of Time.t
+                  | `Numbers of Numbers.t
+                  ]
   let questions =
     (List.map (fun x -> `Greeting x) Greeting.values) @
       (List.map (fun x -> `Geography x) Geography.values) @
@@ -213,7 +272,11 @@ module SharedDictionary = struct
       (List.map (fun x -> `Building x) Building.values) @
       (List.map (fun x -> `HouseFurniture x) HouseAndFurniture.values) @
       (List.map (fun x -> `Nature x) Nature.values) @
-      (List.map (fun x -> `PeopleFunction x) PeopleFunction.values)
+      (List.map (fun x -> `PeopleFunction x) PeopleFunction.values) @
+      (List.map (fun x -> `Verb x) Verb.values) @
+      (List.map (fun x -> `Time x) Time.values) @
+      (List.map (fun x -> `Numbers x) Numbers.values)
+
 
   type t = unit
   let generate_question () = Games.random_element questions
@@ -229,6 +292,10 @@ module SharedDictionary = struct
       | `HouseFurniture h -> HouseAndFurniture.to_english h
       | `Nature n -> Nature.to_english n
       | `PeopleFunction p -> PeopleFunction.to_english p
+      | `Verb v -> Verb.to_english v
+      | `Time t -> Time.to_english t
+      | `Numbers n -> Numbers.to_english n
+
 
   let question_to_string q answero =
     let ps = Printf.sprintf in
@@ -248,6 +315,9 @@ module SharedDictionary = struct
       | `HouseFurniture h -> HouseAndFurniture.to_russian h
       | `Nature n -> Nature.to_russian n
       | `PeopleFunction p -> PeopleFunction.to_russian p
+      | `Verb v -> Verb.to_russian v
+      | `Time t -> Time.to_russian t
+      | `Numbers n -> Numbers.to_russian n
 
 end
 }}
