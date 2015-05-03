@@ -158,7 +158,7 @@ module IndicativePastPresentShared = struct
                      RandomVerbs.random_nor_nork_verb (),
                      time)
       | `NorNori ->
-        (`NorNori (`Zuek (*random_element nor_modes*), `Hiri `Male(*random_element nori_modes*)),
+        (`NorNori (random_element nor_modes, random_element nori_modes),
          RandomVerbs.random_nor_nori_verb (),
          time)
 

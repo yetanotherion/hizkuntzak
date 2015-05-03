@@ -245,23 +245,26 @@ let animation_without_changing_police_size position =
 
 let distribute_pixel_tranformation src_pixel end_pixel ns =
   let delta = end_pixel - src_pixel in
-  let () = Utils.log (Printf.sprintf "delta: %d" delta) in
   let remaining = delta mod ns in
-  let () = Utils.log (Printf.sprintf "remaining: %d" remaining) in
   let delta_per_step = (delta - remaining) / ns in
-  let () = Utils.log (Printf.sprintf "per_step:%d" delta_per_step) in
-  let remaining = delta - delta_per_step in
-  List.map (fun i ->
-    if (i = ns - 1) then end_pixel
+  let remaining = delta - (delta_per_step * ns) in
+  let increase_idx =
+    if remaining != 0 then
+      let nb_elements = ns / remaining in
+      fun i -> i mod nb_elements = 0
+    else fun i -> false
+  in
+  let res, _ = List.fold_left (fun accum i ->
+    let res, previously_added = accum in
+    if (i = ns - 1) then ((end_pixel :: res, end_pixel))
     else
-      let res =
-        let curr_pixel = src_pixel + (delta_per_step * i) in
-        if i < remaining then begin let () = Utils.log "hemen" in curr_pixel + 1 end
+      let curr_pixel = previously_added + delta_per_step in
+      let curr_pixel =
+        if increase_idx i then Pervasives.min (curr_pixel + 1) end_pixel
         else curr_pixel
       in
-      res
-  ) (range 0 ns)
-
+      ((curr_pixel :: res), curr_pixel)) ([], src_pixel) (range 0 ns) in
+  List.rev res
 
 type elt = {
   position: point;
@@ -589,7 +592,7 @@ module NorNori = struct
     let rectangles = split_rectangle t.zone 4 nb_of_rectangles in
     let elts = [[cs "NOR"; cs "Beginning"; ce "Ending"; ce "NORI"];
                 [cs "NI"; cs "NATZAI"; ceL ["T"; "*("; "DATE"; ")"]; ce "NIRI"];
-                [cs "HI"; cs "HATZAI"; ceL ["K"; "*("; "A"; ")(male)/"; "N"; "*("; "NA"; ")(female)"]; ce "HIRI"];
+                [cs "HI"; cs "HATZAI"; ceL ["K"; "*("; "ATE"; ")(male)/"; "N"; "*("; "NATE"; ")(female)"]; ce "HIRI"];
                 [cs "HURA"; cs "ZAI"; ceL ["O"; "*(+"; "TE"; ")"]; ce "HARI"];
                 [cs "GU"; cs "GATZAIZKI"; ceL ["GU"; "*(+"; "TE"; ")"]; ce "GURI" ];
                 [cs "ZU"; cs "ZATZAIZKI"; ceL ["ZU"; "*(+"; "TE"; ")"]; ce "ZURI" ];
