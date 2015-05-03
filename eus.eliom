@@ -61,7 +61,7 @@ module IndicativePastPresentShared = struct
     }
 
   let arguments = Array.of_list [v_mode_argument; v_time_argument]
-  let modes = [`Nor; `NorNork]
+  let modes = [`Nor; `NorNork; `NorNori]
   let times = [`Past; `Present]
   let nor_modes = [`Ni; `Hi; `Hura; `Gu; `Zu; `Zuek; `Haiek]
   let nork_modes = [`Nik; (`Hik `Male); (`Hik `Female);
@@ -254,6 +254,7 @@ module IndicativeClient = Games.MakeClient(IndicativePastPresentClient)
 }}
 
 {server{
+
 module IndicativePastPresentServer = struct
   include IndicativePastPresentShared
   let is_there_help = true
