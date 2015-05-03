@@ -228,9 +228,6 @@ struct
     help_inputs: help_inputs option;
   }
 
-  let write_in_answer_input answer_input str =
-    answer_input##value <- Js.string str
-
   let focus_on_answer answer_input = answer_input##focus()
 
   let make_on_button_click t f ev arg =
@@ -316,7 +313,7 @@ struct
           update_help_if_necessary t
         end
     in
-    let () = write_in_answer_input t.answer_input "" in
+    let () = Utils.write_in_input t.answer_input "" in
     display_current_mode t
 
   let start_game t =
@@ -386,7 +383,7 @@ struct
   let reset_game t =
     let () = t.current_game <- None in
     let () = Html5.Manip.replaceChildren t.answer_output [] in
-    let () = write_in_answer_input t.answer_input "" in
+    let () = Utils.write_in_input t.answer_input "" in
     Html5.Manip.replaceChildren t.question_board []
 
   let on_restart_game_clicks t _ _ =
@@ -462,16 +459,8 @@ end
 {server{
 
 module MakeServer (GC:ServerGameConf) = struct
-  let list_to_select s l =
-    let list = List.map (fun name -> Option ([], name, Some (pcdata name), true)) l in
-    let head = Option ([], s, Some (pcdata s), true)  in
-    head, list
-
   let game_mode_inputs () =
-    let build_raw_select name default others =
-      let h, l = list_to_select default others in
-      raw_select ~a:[] ~required:(pcdata "") ~name:name h l
-    in
+    let open Utils in
     let its i = Printf.sprintf "%d" i in
     let n_inputs =
       "How many questions would you like in that game ?",

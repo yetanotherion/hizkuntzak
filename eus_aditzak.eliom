@@ -745,6 +745,7 @@ module MakeAnimation (T:Table) = struct
 
 
   let start_animation t param =
+    let () = t.canvas.run <- true in
     let () = T.set_animation ~nb_of_steps:(compute_nb_of_animation_steps t) t.canvas t.table param in
     let () = t.nb_times_animation_is_run <-
       t.nb_times_animation_is_run + 1

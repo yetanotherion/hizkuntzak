@@ -30,6 +30,15 @@ let max_of_non_empty_list l =
     (List.hd l)
     (List.tl l)
 
+let list_to_select s l =
+  let list = List.map (fun name -> Option ([], name, Some (pcdata name), true)) l in
+  let head = Option ([], s, Some (pcdata s), true)  in
+  head, list
+
+let build_raw_select name default others =
+  let h, l = list_to_select default others in
+  raw_select ~a:[] ~required:(pcdata "") ~name:name h l
+
 }}
 
 {server{
@@ -45,12 +54,16 @@ let create_bootstrap_head () =
   [utf8_meta;
    viewport_meta;
    stylesheet] @ js_scripts
+
 }}
 
 {client{
   let log s = Firebug.console##log(Js.string s)
 
   let get_input_text element = Js.to_string element##value
+
+  let write_in_input input str =
+    input##value <- Js.string str
 
   let hidde_element elt =
     if not (Js.to_bool (elt##classList##contains(Js.string "hidden")))
