@@ -1,0 +1,31 @@
+.PHONY: clean test
+
+NATIVE_ENABLED = false
+BYTE_ENABLED = true
+
+USE_OCAMLFIND = true
+
+OCAMLPACKS[] +=
+    lwt.syntax
+    lwt.unix
+    pgocaml
+    pgocaml.syntax
+    macaque
+    macaque.syntax
+
+
+OCAMLDEPFLAGS += -syntax camlp4o
+OCAMLCFLAGS += -syntax camlp4o
+OCAMLOPTFLAGS += -syntax camlp4o
+
+# the dependencies are not found in my
+# station without this option
+OCAMLDEP_MODULES_ENABLED = false
+
+if $(not $(OCAMLFIND_EXISTS))
+   eprintln(This project requires ocamlfind, but is was not found.)
+   eprintln(You need to install ocamlfind and run "omake --configure".)
+   exit 1
+
+
+.SUBDIRS: tests

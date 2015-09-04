@@ -1,0 +1,16 @@
+.SUBDIRS:
+
+OCAMLINCLUDES[] +=
+    ..
+
+FILES[] =
+    test_db
+    ../db
+
+clean:
+    rm -rf *.cm* *~ .\#* *.o *.lib *.omc *.install *.tmp test_db
+
+.DEFAULT: $(OCamlProgram test_db, $(FILES))
+
+test: .DEFAULT
+    ./test_db.run
