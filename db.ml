@@ -5,10 +5,6 @@ end
 module Lwt_PGOCaml = PGOCaml_generic.Make(Lwt_thread)
 module Lwt_Query = Query.Make_with_Db(Lwt_thread)(Lwt_PGOCaml)
 
-let join delim l =
-  let res = List.fold_left (fun accum res -> accum ^ res ^ delim) "" l in
-  String.sub res 0 (String.length res - 1)
-
 let must x =
   match x with
   | None -> assert(false)
@@ -108,7 +104,7 @@ module LangDb: (sig
         Lwt.return (StringHashtbl.find t.lang lang)
       else begin
         let supported = StringHashtbl.fold (fun l _ accum -> l :: accum) t.lang [] in
-        let msg = Printf.sprintf "unknown language: %s (supported: %s)" lang (join "," supported) in
+        let msg = Printf.sprintf "unknown language: %s (supported: %s)" lang (String.concat "," supported) in
         Lwt.fail (Failure msg)
         end
 
