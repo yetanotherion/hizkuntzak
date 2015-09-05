@@ -6,12 +6,12 @@
 PROJECT_NAME := hizkuntzak
 
 # Source files for the server
-SERVER_FILES := $(wildcard *.eliomi *.eliom)
+SERVER_FILES := $(wildcard *.eliomi *.eliom) db.ml
 # Source files for the client
 CLIENT_FILES := $(wildcard *.eliomi *.eliom)
 
 # OCamlfind packages for the server
-SERVER_PACKAGES :=
+SERVER_PACKAGES := lwt.syntax lwt.unix pgocaml pgocaml.syntax macaque macaque.syntax
 # OCamlfind packages for the client
 CLIENT_PACKAGES := unix
 
