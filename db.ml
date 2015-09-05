@@ -195,6 +195,11 @@ module User = struct
        <:insert< $table$ := {username = $string:username$;
                              password = $string:password$;
                              id = table?id}>>
+    let do_delete dbh user_id =
+      Lwt_Query.query dbh
+       <:delete< row in $table$ |
+                 row.id = $int32:user_id$ >>
+
     let get dbh username =
       lwt res = Lwt_Query.query dbh <:select< row |
                                               row in $table$;
@@ -209,6 +214,7 @@ module User = struct
            match_lwt (get dbh username) with
            | Some _ -> raise User_exists
            | None -> do_insert dbh username password)
+
 
     let get_existing_id dbh username =
       lwt res = get dbh username in
@@ -299,4 +305,14 @@ module Translation = struct
         Lwt.return (List.map (fun x -> {translation=x#!word;
                                         description=x#!descr}) res))
 
+    let do_delete_all_user_ids_translations dbh user_id =
+      let query = <:delete< row in $table$ |
+                   row.user_id = $int32:user_id$ >> in
+      Lwt_Query.query dbh query
+
+    let delete_user username =
+      LangDb.full_transaction_block (fun dbh ->
+        lwt user_id = User.get_existing_id dbh username in
+        lwt () = do_delete_all_user_ids_translations dbh user_id in
+        User.do_delete dbh user_id)
   end
