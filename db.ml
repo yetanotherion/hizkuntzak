@@ -143,12 +143,50 @@ module Word = struct
 
   end
 
+module User = struct
+    exception User_not_found
+    exception User_exists
+
+    let id = <:sequence< serial "users_id" >>
+    let table = <:table< users (
+                 id integer NOT NULL DEFAULT(nextval $id$),
+                 username text NOT NULL,
+                 password text NOT NULL) >>
+
+    let do_insert username password =
+      lwt dbh = LangDb.get_db () in
+      Lwt_Query.query dbh
+       <:insert< $table$ := {username = $string:username$;
+                             password = $string:password$;
+                             id = table?id}>>
+    let get username =
+      lwt dbh = LangDb.get_db () in
+      lwt res = Lwt_Query.query dbh <:select< row |
+                                              row in $table$;
+                                              row.username = $string:username$ >> in
+      match res with
+       | [] -> Lwt.return None
+       | hd :: _ -> Lwt.return (Some hd)
+
+    let insert username password =
+      match_lwt (get username) with
+      | Some _ -> raise User_exists
+      | None -> do_insert username password
+
+    let get_existing_id username =
+      lwt res = get username in
+      match res with
+      | None -> Lwt.fail User_not_found
+      | Some u -> Lwt.return u#!id
+end
+
 module Translation = struct
     let id = <:sequence< serial "translations_id" >>
     let table = <:table< translations (
                  id integer NOT NULL DEFAULT(nextval $id$),
                  l_word integer  NOT NULL,
                  r_word integer NOT NULL,
+                 user_id integer NOT NULL,
                  description text NOT NULL) >>
 
     type t = {
@@ -158,55 +196,72 @@ module Translation = struct
         description: string;
       }
 
-    let get_id lword_id rword_id =
+    let get_id lword_id rword_id user_id =
       lwt dbh = LangDb.get_db () in
-      let s = <:select< row | row in $table$; row.l_word = $int32:lword_id$; row.r_word = $int32:rword_id$>> in
+      let s = <:select< row |
+                        row in $table$;
+                        row.l_word = $int32:lword_id$;
+                        row.r_word = $int32:rword_id$;
+                        row.user_id = $int32:user_id$>> in
       match_lwt (Lwt_Query.query dbh s) with
         | [] -> Lwt.return None
         | hd :: _ -> Lwt.return (Some hd#!id)
 
-    let insert lword_id rword_id description =
+    let insert lword_id rword_id user_id description =
       lwt dbh = LangDb.get_db () in
       Lwt_Query.query dbh
        <:insert< $table$ := {description = $string:description$;
                              l_word = $int32:lword_id$;
                              r_word = $int32:rword_id$;
+                             user_id = $int32:user_id$;
                              id = table?id}>>
 
     let update_description synonym_id description =
       lwt dbh = LangDb.get_db () in
       Lwt_Query.query dbh
-       <:update< row in $table$ := {description = $string:description$} | row.id = $int32:synonym_id$ >>
+       <:update< row in $table$ := {description = $string:description$} |
+                 row.id = $int32:synonym_id$ >>
 
-    let set ?description:(descr="") l_word l_lang r_word r_lang =
+    let set ?description:(descr="") l_word l_lang r_word r_lang username =
+      lwt user_id = User.get_existing_id username in
       lwt l = Word.get l_word l_lang in
       lwt r = Word.get r_word r_lang in
-      match_lwt (get_id l.Word.id r.Word.id) with
-        | None -> insert l.Word.id r.Word.id descr
+      match_lwt (get_id l.Word.id r.Word.id user_id) with
+        | None -> insert l.Word.id r.Word.id user_id descr
         | Some id -> update_description id descr
+
+    let unset l_word l_lang r_word r_lang username =
+      lwt user_id = User.get_existing_id username in
+      lwt dbh = LangDb.get_db () in
+      lwt l_word = Word.get l_word l_lang in
+      lwt r_word = Word.get r_word r_lang in
+      let query = <:delete< row in $table$ |
+                            row.l_word = $int32:l_word.Word.id$;
+                            row.r_word = $int32:r_word.Word.id$;
+                            row.user_id = $int32:user_id$ >> in
+      Lwt_Query.query dbh query
+
 
     type translation_res = {
         translation: string;
         description: string;
       }
 
-    let get_translations l_word l_lang r_lang =
+    let get_translations l_word l_lang r_lang username =
+      lwt user_id = User.get_existing_id username in
       lwt dbh = LangDb.get_db () in
       lwt l_word = Word.get l_word l_lang in
       lwt words_in_lang = Word.words_in_language r_lang in
-      let translations = << synonym | synonym in $table$; synonym.l_word = $int32:l_word.Word.id$ >> in
-      let query = <:select< {descr = t.description;
-                                word = w.word} | t in $translations$; w in $words_in_lang$; t.r_word = w.id >> in
+      let translations = << synonym |
+                            synonym in $table$;
+                            synonym.l_word = $int32:l_word.Word.id$;
+                            synonym.user_id = $int32:user_id$ >> in
+      let query = <:select< {descr = t.description; word = w.word} |
+                             t in $translations$;
+                             w in $words_in_lang$;
+                             t.r_word = w.id >> in
       lwt res = Lwt_Query.query dbh query in
       Lwt.return (List.map (fun x -> {translation=x#!word;
                                       description=x#!descr}) res)
-
-    let unset l_word l_lang r_word r_lang =
-      lwt dbh = LangDb.get_db () in
-      lwt l_word = Word.get l_word l_lang in
-      lwt r_word = Word.get r_word r_lang in
-      let query = <:delete< row in $table$ | row.l_word = $int32:l_word.Word.id$; row.r_word = $int32:r_word.Word.id$ >> in
-      Lwt_Query.query dbh query
-
 
   end
