@@ -99,11 +99,16 @@ module Word = struct
 
     let words_in_language language =
       lwt language_id = LangDb.find language in
-      Lwt.return << row | row in $table$; row.lang = $int32:language_id$ >>
+      Lwt.return << row |
+                    row in $table$;
+                    row.lang = $int32:language_id$ >>
 
     let get_word_id word language_id =
       lwt dbh = LangDb.get_db () in
-      match_lwt (Lwt_Query.query dbh <:select< row | row in $table$; row.word = $string:word$; row.lang = $int32:language_id$>>)
+      match_lwt (Lwt_Query.query dbh <:select< row |
+                                               row in $table$;
+                                               row.word = $string:word$;
+                                               row.lang = $int32:language_id$>>)
       with
       | [] -> Lwt.return None
       | hd :: _ -> Lwt.return (Some hd#!id)
@@ -139,7 +144,9 @@ module Word = struct
                   word=word;
                   language=lang}
 
-    let find word_id = << {id = row.id} | row in $table$; row.id = $int32:word_id$ >>
+    let find word_id = << {id = row.id} |
+                          row in $table$;
+                          row.id = $int32:word_id$ >>
 
   end
 
