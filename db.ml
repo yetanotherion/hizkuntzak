@@ -217,6 +217,14 @@ module User = struct
       match res with
          | None -> Lwt.fail User_not_found
          | Some u -> Lwt.return u#!id
+
+    let check_password username password =
+      LangDb.use_db
+        (fun dbh ->
+         match_lwt (get dbh username) with
+         | Some u when u#!password = password ->
+            Lwt.return (Some u#!id)
+         | _ -> Lwt.return None)
 end
 
 module Translation = struct
