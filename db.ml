@@ -186,10 +186,13 @@ module User = struct
                  username text NOT NULL,
                  password text NOT NULL) >>
 
+    let hash_password password = Bcrypt.string_of_hash (Bcrypt.hash password)
+    let verify_password p1 p2 = Bcrypt.verify p1 (Bcrypt.hash_of_string p2)
+
     let do_insert dbh username password =
       Lwt_Query.query dbh
        <:insert< $table$ := {username = $string:username$;
-                             password = $string:password$;
+                             password = $string:hash_password password$;
                              id = table?id}>>
     let do_delete dbh user_id =
       Lwt_Query.query dbh
@@ -222,7 +225,7 @@ module User = struct
       LangDb.use_db
         (fun dbh ->
          match_lwt (get dbh username) with
-         | Some u when u#!password = password ->
+         | Some u when verify_password password u#!password ->
             Lwt.return (Some u#!id)
          | _ -> Lwt.return None)
 end
