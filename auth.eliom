@@ -67,7 +67,7 @@ let rpc_create_account =
 
 {client{
 
-  type state = [`Login | `Signup ]
+  type state = [`Login | `Create_account ]
   type 'a div_type = 'a constraint [< Html5_types.div ] = 'a
 
   type 'a t = {
@@ -98,7 +98,7 @@ let rpc_create_account =
     reload ()
 
   let on_go_to_create_account_click t reload =
-    let () = t.state <- `Signup in
+    let () = t.state <- `Create_account in
     reload ()
 
   let on_go_to_login_click t reload =
@@ -118,7 +118,7 @@ let rpc_create_account =
           let () = Html5.Manip.replaceChildren div ui in
           Lwt.return_unit
          end
-       | `Signup -> begin
+       | `Create_account -> begin
            let ui = Auth_view.create_account_elements
                         (on_create_account_click)
                         (fun () -> on_go_to_login_click t r_fun) in

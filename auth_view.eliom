@@ -25,12 +25,17 @@
                        onclick);
     username, password, text_holder
 
-  let ui_elements on_action_click on_go_to_click action_button_name go_to_button_name =
-    let action_button = button ~a:[a_class ["btn"; "btn-lg"; "btn-primary"]] ~button_type:`Button
+  let ui_elements on_action_click on_go_to_click
+                  action_button_name go_to_button_name =
+    let action_button = button ~a:[a_class ["btn"; "btn-lg"; "btn-primary"]]
+                               ~button_type:`Button
                                [pcdata action_button_name] in
-    let go_to_button = button ~a:[a_class ["btn"; "btn-lg"; "btn-warning"]] ~button_type:`Button
+    let go_to_button = button ~a:[a_class ["btn"; "btn-lg"; "btn-warning"]]
+                              ~button_type:`Button
                               [pcdata go_to_button_name] in
-    let username, password, text_holder = username_password_button_error on_action_click action_button in
+    let username, password, text_holder = username_password_button_error
+                                            on_action_click
+                                            action_button in
     let open Lwt_js_events in
     let () = async (fun () -> clicks
                              (Html5.To_dom.of_button go_to_button)
@@ -46,7 +51,8 @@
     ui_elements on_create_account_click on_go_to_login_click "Create account" "Go to login"
 
   let connected_elements on_logout_click uid =
-    let logout = button ~a:[a_class ["btn"; "btn-lg"; "btn-primary"]] ~button_type:`Button
+    let logout = button ~a:[a_class ["btn"; "btn-lg"; "btn-primary"]]
+                        ~button_type:`Button
                         [pcdata "Logout"] in
     let open Lwt_js_events in
     let () = async (fun () -> clicks
