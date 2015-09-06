@@ -90,7 +90,7 @@ let rpc_create_account =
   let on_create_account_click write_msg username password =
     let u, p = input_value username, input_value password in
     match_lwt %rpc_create_account (u,p) with
-    | true -> write_msg "Account created"
+    | true -> write_msg (Printf.sprintf "Account %s created" u)
     | false -> write_msg (Printf.sprintf "User %s already exists" u)
 
   let on_logout_click reload =
