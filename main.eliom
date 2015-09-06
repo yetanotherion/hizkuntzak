@@ -27,6 +27,7 @@ module Hizkuntzak_app =
 
 let () =
   let eus = Hizkuntzak_app.register_service ["eus"] Eliom_parameter.unit Eus.service in
+  let eus_dict = Hizkuntzak_app.register_service ["hiztegia"] Eliom_parameter.unit Dictionary.service in
   let ru = Hizkuntzak_app.register_service ["ru"] Eliom_parameter.unit Ru.service in
   let eus_taulak = Hizkuntzak_app.register_service ["eus_taulak"] Eliom_parameter.unit Eus_taulak.service in
   let main_service =
@@ -38,6 +39,7 @@ let () =
     (fun () () ->
       let links = ul
        [li ~a:[a_class ["active"]] [a ~service:eus [pcdata "Games on basque language"] ()];
+        li ~a:[a_class ["active"]] [a ~service:eus_dict [pcdata "Dictinary on basque language"] ()];
         li ~a:[a_class ["active"]] [a ~service:ru [pcdata "Games on russian language"] ()];]
       in
       let courses = ul
