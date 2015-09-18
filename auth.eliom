@@ -4,7 +4,7 @@
      open Html5.D
 }}
 
-let get_current_user () =
+let get_current_user_id () =
   let uids = Eliom_state.get_volatile_data_session_group () in
   let get_uid uid =
     try Eliom_lib.Option.map Int32.of_string uid
@@ -26,6 +26,13 @@ let get_current_user () =
        | None -> Lwt.return None
       end
     | Some uid -> Lwt.return (Some uid)
+
+let get_current_user () =
+  match_lwt get_current_user_id () with
+  | None -> Lwt.return None
+  | Some id ->
+     lwt (u, p, id) = Db.User.get_existing_user_from_id id in
+     Lwt.return (Some (Current_user.create u p id))
 
 let connect uid =
   lwt () = Eliom_state.set_persistent_data_session_group

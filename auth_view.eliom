@@ -50,7 +50,7 @@
   let create_account_elements on_create_account_click on_go_to_login_click =
     ui_elements on_create_account_click on_go_to_login_click "Create account" "Go to login"
 
-  let connected_elements on_logout_click uid =
+  let connected_elements on_logout_click u =
     let logout = button ~a:[a_class ["btn"; "btn-lg"; "btn-primary"]]
                         ~button_type:`Button
                         [pcdata "Logout"] in
@@ -58,5 +58,5 @@
     let () = async (fun () -> clicks
                              (Html5.To_dom.of_button logout)
                              (fun _ _ -> on_logout_click ())) in
-    [pcdata (Printf.sprintf "Welcome %ld" uid); logout]
+    [pcdata (Printf.sprintf "Ongi etorri %s" u.Current_user.username); logout]
 }}

@@ -228,6 +228,18 @@ module User = struct
          | Some u when verify_password password u#!password ->
             Lwt.return (Some u#!id)
          | _ -> Lwt.return None)
+
+    let do_get_existing_user_from_id dbh id =
+        lwt res = Lwt_Query.query dbh <:select< row |
+                                                row in $table$;
+                                                row.id = $int32:id$ >> in
+      match res with
+       | [] -> assert(false)
+       | hd :: _ -> Lwt.return (hd#!username, hd#!password, hd#!id)
+
+    let get_existing_user_from_id id =
+      LangDb.full_transaction_block
+        (fun dbh -> do_get_existing_user_from_id dbh id)
 end
 
 module Translation = struct
