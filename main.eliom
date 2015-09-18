@@ -39,7 +39,7 @@ let () =
     (fun () () ->
       let links = ul
        [li ~a:[a_class ["active"]] [a ~service:eus [pcdata "Games on basque language"] ()];
-        li ~a:[a_class ["active"]] [a ~service:eus_dict [pcdata "Dictinary on basque language"] ()];
+        li ~a:[a_class ["active"]] [a ~service:eus_dict [pcdata "Dictionary on basque language"] ()];
         li ~a:[a_class ["active"]] [a ~service:ru [pcdata "Games on russian language"] ()];]
       in
       let courses = ul
