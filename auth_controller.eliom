@@ -95,11 +95,14 @@ let login f u p =
    let () = f newm in
    Lwt.return_unit
 
-let create_account f u p =
+let create_account f u p r =
   lwt newm =
-    match_lwt %rpc_create_account (u, p) with
-    | true -> Lwt.return (`CreateAccount (`AccountCreated (Printf.sprintf "account %s created" u)))
-    | false -> Lwt.return (`CreateAccount (`Error (Printf.sprintf "User %s already exists" u))) in
+    if p != r then Lwt.return (`CreateAccount (`Error ("passwords don't match", Some u)))
+    else begin
+      match_lwt %rpc_create_account (u, p) with
+      | true -> Lwt.return (`CreateAccount (`AccountCreated (Printf.sprintf "account %s created" u)))
+      | false -> Lwt.return (`CreateAccount (`Error (Printf.sprintf "User %s already exists" u, None)))
+      end in
   let () = f newm in
   Lwt.return_unit
 

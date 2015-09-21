@@ -35,6 +35,18 @@
                            td [pass]]]) in
     t, user, pass
 
+  let create_user_password_retype_password_inputs () =
+    let user, pass, retype_pass = create_input (), create_input (), create_input () in
+    let t = Html5.(table [
+                       tr [td [pcdata "Username:"];
+                           td [user]];
+                       tr [td [pcdata "Password:"];
+                           td [pass]];
+                       tr [td [pcdata "Retype-password:"];
+                           td [retype_pass]]]) in
+
+    t, user, pass, retype_pass
+
   let auth_content f auth =
     match auth with
     | `Login l -> begin
@@ -52,18 +64,25 @@
         | `Error x -> res @ [Html5.pcdata x]
       end
     | `CreateAccount ca -> begin
-        let t, u, p = create_user_password_inputs () in
+        let t, u, p, r = create_user_password_retype_password_inputs () in
         let action_button = create_button `Action "Create account"
                                           (fun () ->
-                                           let u, p = input_value u, input_value p in
-                                           Auth_controller.create_account f u p) in
+                                           let u, p, r = input_value u, input_value p, input_value r in
+                                           Auth_controller.create_account f u p r) in
         let go_to_button = create_button `Goto "Go to login"
                                          (fun () ->
                                           Auth_controller.goto_login f) in
         let res = [t; action_button; go_to_button] in
         match ca with
         | `Unit -> res
-        | `AccountCreated x | `Error x -> res @ [Html5.pcdata x]
+        | `AccountCreated x -> res @ [Html5.pcdata x]
+        | `Error (x, user) ->
+           let () = match user with
+             | None -> ()
+             | Some str ->
+                (To_dom.of_input u) ## value <- Js.string str
+           in
+           res @ [Html5.pcdata x]
       end
     | `Logged user ->
         let button = create_button `Goto "Logout" (fun () ->
