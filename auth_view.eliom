@@ -17,8 +17,8 @@
   let create_button t name onclick =
     let b_class =
       match t with
-      | `Action -> ["btn"; "btn-lg"; "btn-primary"]
-      | `Goto -> ["btn"; "btn-lg"; "btn-warning"]
+      | `Action -> ["btn"; "btn-primary"]
+      | `Goto -> ["btn"; "btn-warning"]
     in
     let b = Html5.(button ~a:[a_class b_class] [pcdata name]) in
     let () = Lwt_js_events.(async (fun () -> clicks
@@ -26,10 +26,19 @@
                                              (fun _ _ -> onclick ()))) in
     b
 
+  let create_user_password_inputs () =
+    let user, pass = create_input (), create_input () in
+    let t = Html5.(table [
+                       tr [td [pcdata "Username:"];
+                           td [user]];
+                       tr [td [pcdata "Password:"];
+                           td [pass]]]) in
+    t, user, pass
+
   let auth_content f auth =
     match auth with
     | `Login l -> begin
-        let u, p = create_input (), create_input () in
+        let t, u, p = create_user_password_inputs () in
         let action_button = create_button `Action "Login"
                                           (fun () ->
                                            let u, p = input_value u, input_value p in
@@ -37,13 +46,13 @@
         let go_to_button = create_button `Goto "Go to create account"
                                          (fun () ->
                                           Auth_controller.goto_create_account f) in
-        let res = [u; p; action_button; go_to_button] in
+        let res = [t; action_button; go_to_button] in
         match l with
         | `Unit -> res
         | `Error x -> res @ [Html5.pcdata x]
       end
     | `CreateAccount ca -> begin
-        let u, p = create_input (), create_input () in
+        let t, u, p = create_user_password_inputs () in
         let action_button = create_button `Action "Create account"
                                           (fun () ->
                                            let u, p = input_value u, input_value p in
@@ -51,7 +60,7 @@
         let go_to_button = create_button `Goto "Go to login"
                                          (fun () ->
                                           Auth_controller.goto_login f) in
-        let res = [u; p; action_button; go_to_button] in
+        let res = [t; action_button; go_to_button] in
         match ca with
         | `Unit -> res
         | `AccountCreated x | `Error x -> res @ [Html5.pcdata x]
