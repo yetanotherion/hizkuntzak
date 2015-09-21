@@ -1,62 +1,82 @@
 {client{
   open Eliom_content
-  open Html5.D
+  open Tyxml_js
 
-  let username_password_button_error onclick button =
-    let username = string_input ~input_type:`Text () in
-    let password = string_input ~input_type:`Text () in
-    let text_holder = div [] in
-    let reset_input i = (Html5.To_dom.of_input i) ## value <- Js.string "" in
-    let write_msg msg =
-      let () = Html5.Manip.replaceChildren text_holder
-                                           [pcdata msg] in
-      Lwt.return_unit
+  module ReactList = struct
+    let list t =
+      let open ReactiveData.RList in
+      make_from
+        (React.S.value t)
+        (React.E.map (fun e -> Set e) (React.S.changes t))
+  end
+
+
+  let input_value i = Js.to_string (To_dom.of_input i) ## value
+  let create_input () = Html5.(input ~a:[a_input_type `Text] ())
+
+  let create_button t name onclick =
+    let b_class =
+      match t with
+      | `Action -> ["btn"; "btn-lg"; "btn-primary"]
+      | `Goto -> ["btn"; "btn-lg"; "btn-warning"]
     in
-    let onclick _ _ =
-      let () = Html5.Manip.replaceChildren text_holder [] in
-      lwt res = onclick write_msg username password in
-      let () = reset_input username in
-      let () = reset_input password in
-      Lwt.return_unit
-      in
-    let open Lwt_js_events in
-    async (fun () -> clicks
-                       (Html5.To_dom.of_button button)
-                       onclick);
-    username, password, text_holder
+    let b = Html5.(button ~a:[a_class b_class] [pcdata name]) in
+    let () = Lwt_js_events.(async (fun () -> clicks
+                                             (To_dom.of_button b)
+                                             (fun _ _ -> onclick ()))) in
+    b
 
-  let ui_elements on_action_click on_go_to_click
-                  action_button_name go_to_button_name =
-    let action_button = button ~a:[a_class ["btn"; "btn-lg"; "btn-primary"]]
-                               ~button_type:`Button
-                               [pcdata action_button_name] in
-    let go_to_button = button ~a:[a_class ["btn"; "btn-lg"; "btn-warning"]]
-                              ~button_type:`Button
-                              [pcdata go_to_button_name] in
-    let username, password, text_holder = username_password_button_error
-                                            on_action_click
-                                            action_button in
-    let open Lwt_js_events in
-    let () = async (fun () -> clicks
-                             (Html5.To_dom.of_button go_to_button)
-                             (fun _ _ -> on_go_to_click ())) in
-    [username; password;
-     action_button; go_to_button;
-     text_holder]
+  let auth_content f auth =
+    match auth with
+    | `Login l -> begin
+        let u, p = create_input (), create_input () in
+        let action_button = create_button `Action "Login"
+                                          (fun () ->
+                                           let u, p = input_value u, input_value p in
+                                           Auth_controller.login f u p) in
+        let go_to_button = create_button `Goto "Go to create account"
+                                         (fun () ->
+                                          Auth_controller.goto_create_account f) in
+        let res = [u; p; action_button; go_to_button] in
+        match l with
+        | `Unit -> res
+        | `Error x -> res @ [Html5.pcdata x]
+      end
+    | `CreateAccount ca -> begin
+        let u, p = create_input (), create_input () in
+        let action_button = create_button `Action "Create account"
+                                          (fun () ->
+                                           let u, p = input_value u, input_value p in
+                                           Auth_controller.create_account f u p) in
+        let go_to_button = create_button `Goto "Go to login"
+                                         (fun () ->
+                                          Auth_controller.goto_login f) in
+        let res = [u; p; action_button; go_to_button] in
+        match ca with
+        | `Unit -> res
+        | `AccountCreated x | `Error x -> res @ [Html5.pcdata x]
+      end
+    | `Logged user ->
+        let button = create_button `Goto "Logout" (fun () ->
+                                                   Auth_controller.logout f) in
+        [Html5.pcdata (Printf.sprintf "Ongi etorri %s" user.Current_user.username); button]
 
-  let login_elements on_login_click on_go_to_create_click =
-    ui_elements on_login_click on_go_to_create_click "Login" "Go to create account"
+  let view ((r, f): Auth_model.rp) =
+    R.Html5.(div (ReactList.list (React.S.map (auth_content f) r)))
 
-  let create_account_elements on_create_account_click on_go_to_login_click =
-    ui_elements on_create_account_click on_go_to_login_click "Create account" "Go to login"
+  let setup () =
+    let doc = Dom_html.document in
+    let parent =
+      Js.Opt.get (doc##getElementById(Js.string "main"))
+        (fun () -> assert false)
+    in
+    lwt model =
+      match_lwt Auth_controller.get_current_user () with
+       | None -> Lwt.return Auth_model.not_logged
+       | Some u -> Lwt.return (Auth_model.logged u)
+    in
+    let rp = React.S.create model in
+    let () = Dom.appendChild parent (Tyxml_js.To_dom.of_div (view rp)) in
+    Lwt.return_unit
 
-  let connected_elements on_logout_click u =
-    let logout = button ~a:[a_class ["btn"; "btn-lg"; "btn-primary"]]
-                        ~button_type:`Button
-                        [pcdata "Logout"] in
-    let open Lwt_js_events in
-    let () = async (fun () -> clicks
-                             (Html5.To_dom.of_button logout)
-                             (fun _ _ -> on_logout_click ())) in
-    [pcdata (Printf.sprintf "Ongi etorri %s" u.Current_user.username); logout]
 }}
