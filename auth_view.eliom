@@ -12,82 +12,71 @@
 
 
   let input_value i = Js.to_string (To_dom.of_input i) ## value
-  let create_input () = Html5.(input ~a:[a_input_type `Text] ())
+  let create_input ?input_type:(it=`Text) name = Html5.(input ~a:[a_input_type it; a_class ["form-control"]; a_placeholder name] ())
 
-  let create_button t name onclick =
+  let create_button ?additional_class:(a=[]) t name onclick =
     let b_class =
       match t with
-      | `Action -> ["btn"; "btn-primary"]
-      | `Goto -> ["btn"; "btn-warning"]
+      | `Action -> ["btn"; "btn-primary"; "btn-block"]
+      | `Goto -> ["btn"; "btn-success"; "btn-xs"]
     in
+    let b_class = b_class @ a in
     let b = Html5.(button ~a:[a_class b_class] [pcdata name]) in
     let () = Lwt_js_events.(async (fun () -> clicks
                                              (To_dom.of_button b)
                                              (fun _ _ -> onclick ()))) in
     b
 
-  let create_user_password_inputs () =
-    let user, pass = create_input (), create_input () in
-    let t = Html5.(table [
-                       tr [td [pcdata "Username:"];
-                           td [user]];
-                       tr [td [pcdata "Password:"];
-                           td [pass]]]) in
-    t, user, pass
-
-  let create_user_password_retype_password_inputs () =
-    let user, pass, retype_pass = create_input (), create_input (), create_input () in
-    let t = Html5.(table [
-                       tr [td [pcdata "Username:"];
-                           td [user]];
-                       tr [td [pcdata "Password:"];
-                           td [pass]];
-                       tr [td [pcdata "Retype-password:"];
-                           td [retype_pass]]]) in
-
-    t, user, pass, retype_pass
+  let wrap_in_form_signin content =
+    [Html5.(div ~a:[a_class ["form-signin"]] content)]
 
   let auth_content f auth =
     match auth with
     | `Login l -> begin
-        let t, u, p = create_user_password_inputs () in
+        let user, password = create_input "Username", create_input ~input_type:`Password "Password" in
         let action_button = create_button `Action "Login"
                                           (fun () ->
-                                           let u, p = input_value u, input_value p in
+                                           let u, p = input_value user, input_value password in
                                            Auth_controller.login f u p) in
-        let go_to_button = create_button `Goto "Go to create account"
+        let goto_button = create_button `Goto "Go to create account"
                                          (fun () ->
                                           Auth_controller.goto_create_account f) in
-        let res = [t; action_button; go_to_button] in
-        match l with
-        | `Unit -> res
-        | `Error x -> res @ [Html5.pcdata x]
+
+        let res = [user; password; action_button; goto_button] in
+        let content = match l with
+          | `Unit -> res
+          | `Error x -> res @ [Html5.pcdata x]
+        in
+        wrap_in_form_signin content
       end
     | `CreateAccount ca -> begin
-        let t, u, p, r = create_user_password_retype_password_inputs () in
+        let user, pass, confirm = create_input "Username", create_input ~input_type:`Password "Password", create_input ~input_type:`Password "Confirm password" in
         let action_button = create_button `Action "Create account"
                                           (fun () ->
-                                           let u, p, r = input_value u, input_value p, input_value r in
+                                           let u, p, r = input_value user, input_value pass, input_value confirm in
                                            Auth_controller.create_account f u p r) in
-        let go_to_button = create_button `Goto "Go to login"
+        let goto_button = create_button `Goto "Go to login"
                                          (fun () ->
                                           Auth_controller.goto_login f) in
-        let res = [t; action_button; go_to_button] in
-        match ca with
+        let res = [user; pass; confirm; action_button; goto_button] in
+        let content = match ca with
         | `Unit -> res
         | `AccountCreated x -> res @ [Html5.pcdata x]
-        | `Error (x, user) ->
-           let () = match user with
+        | `Error (x, e_user) ->
+           let () = match e_user with
              | None -> ()
              | Some str ->
-                (To_dom.of_input u) ## value <- Js.string str
+                (To_dom.of_input user) ## value <- Js.string str
            in
            res @ [Html5.pcdata x]
+        in
+        wrap_in_form_signin content
       end
     | `Logged user ->
-        let button = create_button `Goto "Logout" (fun () ->
-                                                   Auth_controller.logout f) in
-        [Html5.pcdata (Printf.sprintf "Ongi etorri %s" user.Current_user.username); button]
+       let logout = create_button `Goto "Logout" (fun () ->
+                                                                                 Auth_controller.logout f) in
+       Html5.([table [tr [td [logout;
+                              h2 [pcdata (Printf.sprintf "Ongi etorri %s" user.Current_user.username)]]]]])
 
   let view ((r, f): Auth_model.rp) =
     R.Html5.(div (ReactList.list (React.S.map (auth_content f) r)))

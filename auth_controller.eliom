@@ -97,7 +97,10 @@ let login f u p =
 
 let create_account f u p r =
   lwt newm =
-    if p != r then Lwt.return (`CreateAccount (`Error ("passwords don't match", Some u)))
+    if String.compare p r <> 0 then (
+      let () = Utils.log (Printf.sprintf "%s != %s" p r) in
+      Lwt.return (`CreateAccount (`Error ("passwords don't match", Some u)))
+    )
     else begin
       match_lwt %rpc_create_account (u, p) with
       | true -> Lwt.return (`CreateAccount (`AccountCreated (Printf.sprintf "account %s created" u)))
