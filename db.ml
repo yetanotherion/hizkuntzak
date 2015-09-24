@@ -16,6 +16,7 @@ module LangDb: (sig
                    val full_transaction_block: ((string, bool) Hashtbl.t Lwt_PGOCaml.t -> 'a Lwt.t) -> 'a Lwt.t
                    val use_db : ((string, bool) Hashtbl.t Lwt_PGOCaml.t -> 'a Lwt.t) -> 'a Lwt.t
                    val find: string -> int32 Lwt.t
+                   val find_lang: int32 -> string Lwt.t
                  end) = struct
 
  (* a new language can only be added out of the application.
@@ -28,10 +29,18 @@ module LangDb: (sig
         let hash = Hashtbl.hash
       end
 
+    module IntHash = struct
+        type t = int32
+        let equal i j = i = j
+        let hash = Hashtbl.hash
+      end
+
     module StringHashtbl = Hashtbl.Make (StringHash)
+    module IntHashtbl = Hashtbl.Make (IntHash)
 
     type t = {
-        lang: Int32.t StringHashtbl.t;
+        lang_to_id: Int32.t StringHashtbl.t;
+        id_to_lang: string IntHashtbl.t;
         pool: (string, bool) Hashtbl.t Lwt_PGOCaml.t Lwt_pool.t;
       }
 
@@ -41,9 +50,11 @@ module LangDb: (sig
 
     let load_table dbh =
       lwt res = Lwt_Query.query dbh <:select< row | row in $table$>> in
-      let h = StringHashtbl.create (List.length res) in
-      let () = List.iter (fun x -> StringHashtbl.add h x#!lang x#!id) res in
-      Lwt.return h
+      let length = List.length res in
+      let h1, h2 = StringHashtbl.create length, IntHashtbl.create length in
+      let () = List.iter (fun x -> StringHashtbl.add h1 x#!lang x#!id) res in
+      let () = List.iter (fun x -> IntHashtbl.add h2 x#!id x#!lang) res in
+      Lwt.return (h1, h2)
 
     let connect_to_db () =
       try_lwt
@@ -75,9 +86,10 @@ module LangDb: (sig
 
     let create () =
       let pool = Lwt_pool.create 16 ~validate connect_to_db in
-      lwt lang = Lwt_pool.use pool load_table in
+      lwt lang_to_id, id_to_lang = Lwt_pool.use pool load_table in
       Lwt.return {pool=pool;
-                  lang=lang}
+                  lang_to_id=lang_to_id;
+                  id_to_lang=id_to_lang}
 
     let tref = ref None
 
@@ -98,15 +110,30 @@ module LangDb: (sig
       lwt t = get () in
       Lwt_pool.use t.pool f
 
+    let do_find_id t lang =
+      if StringHashtbl.mem t.lang_to_id lang then
+        (StringHashtbl.find t.lang_to_id lang)
+      else begin
+        let supported = StringHashtbl.fold (fun l _ accum -> l :: accum) t.lang_to_id [] in
+        let msg = Printf.sprintf "unknown language: %s (supported: %s)" lang (String.concat "," supported) in
+        raise (Failure msg)
+        end
+
+    let do_find_lang t id = IntHashtbl.find t.id_to_lang id
+
     let find lang =
       lwt t = get () in
-      if StringHashtbl.mem t.lang lang then
-        Lwt.return (StringHashtbl.find t.lang lang)
-      else begin
-        let supported = StringHashtbl.fold (fun l _ accum -> l :: accum) t.lang [] in
-        let msg = Printf.sprintf "unknown language: %s (supported: %s)" lang (String.concat "," supported) in
-        Lwt.fail (Failure msg)
-        end
+      try
+        let res = do_find_id t lang in
+        Lwt.return res
+      with e -> Lwt.fail e
+
+    let find_lang lang =
+      lwt t = get () in
+      try
+        let res = do_find_lang t lang in
+        Lwt.return res
+      with e -> Lwt.fail e
 
   end
 
@@ -176,6 +203,8 @@ module Word = struct
 
   end
 
+let get_current_date () = CalendarLib.Date.from_unixfloat (Unix.time ())
+
 module User = struct
     exception User_not_found
     exception User_exists
@@ -184,16 +213,30 @@ module User = struct
     let table = <:table< users (
                  id integer NOT NULL DEFAULT(nextval $id$),
                  username text NOT NULL,
-                 password text NOT NULL) >>
+                 password text NOT NULL,
+                 preferred_lang integer NOT NULL,
+                 last_visit_date date NOT NULL) >>
 
     let hash_password password = Bcrypt.string_of_hash (Bcrypt.hash password)
     let verify_password p1 p2 = Bcrypt.verify p1 (Bcrypt.hash_of_string p2)
 
     let do_insert dbh username password =
+      lwt preferred_lang = LangDb.find "en" in
+      let date =  get_current_date () in
       Lwt_Query.query dbh
        <:insert< $table$ := {username = $string:username$;
                              password = $string:hash_password password$;
-                             id = table?id}>>
+                             id = table?id;
+                             preferred_lang = $int32:preferred_lang$;
+                             last_visit_date = $date:date$;
+                            } >>
+
+    let update_last_visit_date dbh id =
+      let date = get_current_date () in
+      Lwt_Query.query dbh
+       <:update< row in $table$ := {last_visit_date = $date:date$} |
+                 row.id = $int32:id$ >>
+
     let do_delete dbh user_id =
       Lwt_Query.query dbh
        <:delete< row in $table$ |
@@ -235,11 +278,16 @@ module User = struct
                                                 row.id = $int32:id$ >> in
       match res with
        | [] -> assert(false)
-       | hd :: _ -> Lwt.return (hd#!username, hd#!password, hd#!id)
+       | hd :: _ ->
+          lwt lang = LangDb.find_lang hd#!preferred_lang in
+          Lwt.return (hd#!username, hd#!password, hd#!id, lang)
 
     let get_existing_user_from_id id =
       LangDb.full_transaction_block
-        (fun dbh -> do_get_existing_user_from_id dbh id)
+        (fun dbh ->
+         lwt () = update_last_visit_date dbh id in
+         do_get_existing_user_from_id dbh id)
+
 end
 
 module Translation = struct

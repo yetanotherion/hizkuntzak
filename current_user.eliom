@@ -4,8 +4,10 @@ type t = {
     username: string;
     password: string;
     id: Int32.t;
-  }
-let create username password id = {
-    username; password; id
+    preferred_lang: string;
+}
+
+let create username password id preferred_lang = {
+    username; password; id; preferred_lang
   }
 }}

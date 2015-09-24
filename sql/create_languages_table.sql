@@ -8,3 +8,4 @@ CREATE TABLE languages (
 INSERT INTO languages VALUES (0, 'eus');
 INSERT INTO languages VALUES (1, 'en');
 INSERT INTO languages VALUES (2, 'fr');
+INSERT INTO languages VALUES (3, 'ru');
