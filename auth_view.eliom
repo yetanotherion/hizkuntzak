@@ -2,14 +2,6 @@
   open Eliom_content
   open Tyxml_js
 
-  module ReactList = struct
-    let list t =
-      let open ReactiveData.RList in
-      make_from
-        (React.S.value t)
-        (React.E.map (fun e -> Set e) (React.S.changes t))
-  end
-
 
   let input_value i = Js.to_string (To_dom.of_input i) ## value
   let create_input ?input_type:(it=`Text) name = Html5.(input ~a:[a_input_type it; a_class ["form-control"]; a_placeholder name] ())
@@ -30,7 +22,7 @@
   let wrap_in_form_signin content =
     [Html5.(div ~a:[a_class ["form-signin"]] content)]
 
-  let auth_content f auth =
+  let auth_content f create_authenticated_page auth =
     match auth with
     | `Login l -> begin
         let user, password = create_input "Username", create_input ~input_type:`Password "Password" in
@@ -74,14 +66,18 @@
       end
     | `Logged user ->
        let logout = create_button `Goto "Logout" (fun () ->
-                                                                                 Auth_controller.logout f) in
+                                                  Auth_controller.logout f) in
+
        Html5.([table [tr [td [logout;
-                              h2 [pcdata (Printf.sprintf "Ongi etorri %s" user.Current_user.username)]]]]])
+                              h2 [pcdata (Printf.sprintf "Ongi etorri %s" user.Current_user.username)]
+                             ]
+                         ]];
+               create_authenticated_page user])
 
-  let view ((r, f): Auth_model.rp) =
-    R.Html5.(div (ReactList.list (React.S.map (auth_content f) r)))
+  let view ((r, f): Auth_model.rp) create_auth_page =
+    R.Html5.(div (Utils.ReactList.list (React.S.map (auth_content f create_auth_page) r)))
 
-  let setup () =
+  let setup create_auth_page =
     let doc = Dom_html.document in
     let parent =
       Js.Opt.get (doc##getElementById(Js.string "main"))
@@ -93,7 +89,7 @@
        | Some u -> Lwt.return (Auth_model.logged u)
     in
     let rp = React.S.create model in
-    let () = Dom.appendChild parent (Tyxml_js.To_dom.of_div (view rp)) in
+    let () = Dom.appendChild parent (Tyxml_js.To_dom.of_div (view rp create_auth_page)) in
     Lwt.return_unit
 
 }}

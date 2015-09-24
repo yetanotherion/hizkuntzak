@@ -72,4 +72,13 @@ let create_bootstrap_head () =
   let show_element elt =
     if (Js.to_bool (elt##classList##contains(Js.string "hidden")))
     then elt##classList##remove(Js.string "hidden")
+
+  module ReactList = struct
+    let list t =
+      let open ReactiveData.RList in
+      make_from
+        (React.S.value t)
+        (React.E.map (fun e -> Set e) (React.S.changes t))
+  end
+
 }}
