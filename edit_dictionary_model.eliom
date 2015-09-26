@@ -30,4 +30,7 @@
 
   let update_translations t translations =
     {t with translations = translations}
+
+  let add_translation t translation =
+    update_translations t (translation :: t.translations)
 }}

@@ -107,11 +107,13 @@ let create_bootstrap_head () =
     let open Tyxml_js in
     let header_data = Html5.(List.map (fun x -> th [pcdata x])) header in
     let table_head = Html5.(thead [tr header_data]) in
-    let get_line line_elements = List.map Html5.(fun text -> td [pcdata text]) line_elements in
+    let get_line line_elements = List.map Html5.(fun elt -> td elt) line_elements in
     let body_data = List.map (fun x -> Html5.tr (get_line x)) body in
     let table_body = Html5.([tbody body_data]) in
     Html5.(tablex ~a:[a_class ["table"; "table-striped"]] ~thead:table_head table_body)
 
   let create_input ?input_type:(it=`Text) name = Tyxml_js.Html5.(input ~a:[a_input_type it; a_class ["form-control"]; a_placeholder name] ())
 
+  let input_value i = Js.to_string (Tyxml_js.To_dom.of_input i) ## value
+  let select_value s = Js.to_string (Tyxml_js.To_dom.of_select s) ## value
 }}

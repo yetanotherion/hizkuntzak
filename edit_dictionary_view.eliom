@@ -1,8 +1,6 @@
 {client{
   open Tyxml_js
 
-  let input_value i = Js.to_string (To_dom.of_select i) ## value
-
   let preferred_lang_to_string x =
     match x with
     | "en" -> "ingelesa"
@@ -46,7 +44,7 @@
        let u_button = Utils.create_button `ActionLittle
                                           "Eguneratu"
                                           (fun () ->
-                                           let input_val = input_value select in
+                                           let input_val = Utils.select_value select in
                                            Edit_dictionary_controller.update_preferred_lang f model (string_to_preferred_lang input_val)) in
 
        [Html5.(pcdata "Nire benetako ama hizkuntza");
@@ -55,9 +53,18 @@
         u_button;
         c_button]
     in
+    let source, dest, description = Utils.(create_input "hitz berria", create_input "itzulpena", create_input "azalpena") in
+    let update = Utils.create_button `ActionLittle
+                                     "Gehitu"
+                                     (fun () ->
+                                      let source, dest, value = Utils.(input_value source, input_value dest, input_value description) in
+                                      Edit_dictionary_controller.add_translation f model source dest value) in
+    let add_translation = [[source]; [dest]; [description; update]] in
+    let existing = (List.map (fun x -> Utils.Translation.([x.source; x.dest; x.description]))
+                             (get_translations model)) in
+    let pcdata_existing = List.map (fun l -> List.map (fun x -> [Html5.pcdata x]) l) existing in
     let translations = Utils.create_table ["euskaraz"; preferred_lang_to_string_declined (get_preferred_lang model); "azalpenak"]
-                                          (List.map (fun x -> Utils.Translation.([x.source; x.dest; x.description]))
-                                                    (get_translations model)) in
+                                          (add_translation :: pcdata_existing) in
     let under_banner = under_banner @ [translations] in
     Html5.(banner :: under_banner)
 
@@ -69,9 +76,7 @@
     let r, f = React.S.create model in
     let res = view (r, f) in
     let () = Lwt_js_events.(async (fun () ->
-                                   lwt _ = onload () in
-                                   lwt translations = Edit_dictionary_controller.get_translations user in
-                                   let model = Edit_dictionary_model.update_translations model translations in
+                                   lwt model = Edit_dictionary_controller.update_translations model in
                                    let () = f model in
                                    Lwt.return_unit)) in
     res

@@ -3,7 +3,6 @@
   open Tyxml_js
 
 
-  let input_value i = Js.to_string (To_dom.of_input i) ## value
   let wrap_in_form_signin content =
     [Html5.(div ~a:[a_class ["form-signin"]] content)]
 
@@ -11,10 +10,10 @@
     match auth with
     | `Login l -> begin
         let user, password = Utils.(create_input "Username", create_input ~input_type:`Password "Password") in
-        let action_button = Utils.create_button `Action "Login"
-                                          (fun () ->
-                                           let u, p = input_value user, input_value password in
-                                           Auth_controller.login f u p) in
+        let action_button = Utils.(create_button `Action "Login"
+                                           (fun () ->
+                                            let u, p = input_value user, input_value password in
+                                            Auth_controller.login f u p)) in
         let goto_button = Utils.create_button `Goto "Go to create account"
                                          (fun () ->
                                           Auth_controller.goto_create_account f) in
@@ -28,10 +27,10 @@
       end
     | `CreateAccount ca -> begin
         let user, pass, confirm = Utils.(create_input "Username", create_input ~input_type:`Password "Password", create_input ~input_type:`Password "Confirm password") in
-        let action_button = Utils.create_button `Action "Create account"
-                                          (fun () ->
-                                           let u, p, r = input_value user, input_value pass, input_value confirm in
-                                           Auth_controller.create_account f u p r) in
+        let action_button = Utils.(create_button `Action "Create account"
+                                           (fun () ->
+                                            let u, p, r = input_value user, input_value pass, input_value confirm in
+                                            Auth_controller.create_account f u p r)) in
         let goto_button = Utils.create_button `Goto "Go to login"
                                          (fun () ->
                                           Auth_controller.goto_login f) in
