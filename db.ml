@@ -365,27 +365,43 @@ module Translation = struct
                               row.user_id = $int32:user_id$ >> in
         Lwt_Query.query dbh query)
 
-
-    type translation_res = {
-        translation: string;
-        description: string;
-      }
-
-    let get_translations ?l_lang:(l_lang="eus") l_word r_lang user_id =
+    let get_translations ?l_lang:(l_lang="eus") ?l_word:(l_word=None) user_id r_lang =
       LangDb.full_transaction_block (fun dbh ->
-        lwt l_word = Word.get dbh l_word l_lang in
-        lwt words_in_lang = Word.words_in_language r_lang in
-        let translations = << synonym |
-                              synonym in $table$;
-                              synonym.l_word = $int32:l_word.Word.id$;
-                              synonym.user_id = $int32:user_id$ >> in
-        let query = <:select< {descr = t.description; word = w.word} |
-                               t in $translations$;
-                               w in $words_in_lang$;
-                               t.r_word = w.id >> in
+        lwt words_in_r_lang = Word.words_in_language r_lang in
+        lwt words_in_l_lang = Word.words_in_language l_lang in
+        lwt query = match l_word with
+          | Some word -> begin
+             lwt l_word = Word.get dbh word l_lang in
+             let translations = << synonym |
+                                   synonym in $table$;
+                                   synonym.l_word = $int32:l_word.Word.id$;
+                                   synonym.user_id = $int32:user_id$ >> in
+             Lwt.return
+               <:select< {descr = t.description; l_word = lw.word; r_word = rw.word} |
+                          t in $translations$;
+                          lw in $words_in_l_lang$;
+                          rw in $words_in_r_lang$;
+                          t.r_word = rw.id;
+                          t.l_word = lw.id >>
+            end
+          | None -> begin
+             let translations = << synonym |
+                                   synonym in $table$;
+                                   synonym.user_id = $int32:user_id$ >> in
+             Lwt.return
+               <:select< {descr = t.description; l_word = lw.word; r_word = rw.word} |
+                          t in $translations$;
+                          lw in $words_in_l_lang$;
+                          rw in $words_in_r_lang$;
+                          t.r_word = rw.id;
+                          t.l_word = lw.id >>
+            end
+        in
         lwt res = Lwt_Query.query dbh query in
-        Lwt.return (List.map (fun x -> {translation=x#!word;
-                                        description=x#!descr}) res))
+        let make_res x = Utils.Translation.({source=x#!l_word;
+                                             dest=x#!r_word;
+                                             description=x#!descr}) in
+        Lwt.return (List.map make_res res))
 
     let do_delete_all_user_ids_translations dbh user_id =
       let query = <:delete< row in $table$ |

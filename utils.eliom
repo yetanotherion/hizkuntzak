@@ -39,6 +39,14 @@ let build_raw_select name default others =
   let h, l = list_to_select default others in
   raw_select ~a:[] ~required:(pcdata "") ~name:name h l
 
+module Translation = struct
+    type t = {
+        source: string;
+        dest: string;
+        description: string;
+      }
+  end
+
 }}
 
 {server{
@@ -95,5 +103,12 @@ let create_bootstrap_head () =
                                              (fun _ _ -> onclick ()))) in
     b
 
-
+  let create_table header body =
+    let open Tyxml_js in
+    let header_data = Html5.(List.map (fun x -> th [pcdata x])) header in
+    let table_head = Html5.(thead [tr header_data]) in
+    let get_line line_elements = List.map Html5.(fun text -> td [pcdata text]) line_elements in
+    let body_data = List.map (fun x -> Html5.tr (get_line x)) body in
+    let table_body = Html5.([tbody body_data]) in
+    Html5.(tablex ~a:[a_class ["table"; "table-striped"]] ~thead:table_head table_body)
 }}

@@ -30,6 +30,10 @@
         u_button;
         c_button]
     in
+    let translations = Utils.create_table ["eus"; get_preferred_lang model; "azalpenak"]
+                                          (List.map (fun x -> Utils.Translation.([x.source; x.dest; x.description]))
+                                                    (get_translations model)) in
+    let under_banner = under_banner @ [translations] in
     Html5.(banner :: under_banner)
 
   let view ((r, f): Edit_dictionary_model.rp) =
@@ -37,7 +41,15 @@
 
   let create_auth_page user =
     let model = Edit_dictionary_model.create user in
-    let rp = React.S.create model in
-    view rp
+    let r, f = React.S.create model in
+    let res = view (r, f) in
+    let () = Lwt_js_events.(async (fun () ->
+                                   lwt _ = onload () in
+                                   lwt translations = Edit_dictionary_controller.get_translations user in
+                                   let model = Edit_dictionary_model.update_translations model translations in
+                                   let () = f model in
+                                   Lwt.return_unit)) in
+    res
+
 
 }}
