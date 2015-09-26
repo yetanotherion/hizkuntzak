@@ -6,19 +6,6 @@
   let input_value i = Js.to_string (To_dom.of_input i) ## value
   let create_input ?input_type:(it=`Text) name = Html5.(input ~a:[a_input_type it; a_class ["form-control"]; a_placeholder name] ())
 
-  let create_button ?additional_class:(a=[]) t name onclick =
-    let b_class =
-      match t with
-      | `Action -> ["btn"; "btn-primary"; "btn-block"]
-      | `Goto -> ["btn"; "btn-success"; "btn-xs"]
-    in
-    let b_class = b_class @ a in
-    let b = Html5.(button ~a:[a_class b_class] [pcdata name]) in
-    let () = Lwt_js_events.(async (fun () -> clicks
-                                             (To_dom.of_button b)
-                                             (fun _ _ -> onclick ()))) in
-    b
-
   let wrap_in_form_signin content =
     [Html5.(div ~a:[a_class ["form-signin"]] content)]
 
@@ -26,11 +13,11 @@
     match auth with
     | `Login l -> begin
         let user, password = create_input "Username", create_input ~input_type:`Password "Password" in
-        let action_button = create_button `Action "Login"
+        let action_button = Utils.create_button `Action "Login"
                                           (fun () ->
                                            let u, p = input_value user, input_value password in
                                            Auth_controller.login f u p) in
-        let goto_button = create_button `Goto "Go to create account"
+        let goto_button = Utils.create_button `Goto "Go to create account"
                                          (fun () ->
                                           Auth_controller.goto_create_account f) in
 
@@ -43,11 +30,11 @@
       end
     | `CreateAccount ca -> begin
         let user, pass, confirm = create_input "Username", create_input ~input_type:`Password "Password", create_input ~input_type:`Password "Confirm password" in
-        let action_button = create_button `Action "Create account"
+        let action_button = Utils.create_button `Action "Create account"
                                           (fun () ->
                                            let u, p, r = input_value user, input_value pass, input_value confirm in
                                            Auth_controller.create_account f u p r) in
-        let goto_button = create_button `Goto "Go to login"
+        let goto_button = Utils.create_button `Goto "Go to login"
                                          (fun () ->
                                           Auth_controller.goto_login f) in
         let res = [user; pass; confirm; action_button; goto_button] in
@@ -65,8 +52,8 @@
         wrap_in_form_signin content
       end
     | `Logged user ->
-       let logout = create_button `Goto "Logout" (fun () ->
-                                                  Auth_controller.logout f) in
+       let logout = Utils.create_button `Goto "Logout" (fun () ->
+                                                        Auth_controller.logout f) in
 
        Html5.([table [tr [td [logout;
                               h2 [pcdata (Printf.sprintf "Ongi etorri %s" user.Current_user.username)]

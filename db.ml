@@ -17,6 +17,7 @@ module LangDb: (sig
                    val use_db : ((string, bool) Hashtbl.t Lwt_PGOCaml.t -> 'a Lwt.t) -> 'a Lwt.t
                    val find: string -> int32 Lwt.t
                    val find_lang: int32 -> string Lwt.t
+                   val get_supported_languages: unit -> string list Lwt.t
                  end) = struct
 
  (* a new language can only be added out of the application.
@@ -110,11 +111,18 @@ module LangDb: (sig
       lwt t = get () in
       Lwt_pool.use t.pool f
 
+    let do_get_supported_languages t =
+      List.filter (fun x -> x <> "eus") (StringHashtbl.fold (fun l _ accum -> l :: accum) t.lang_to_id [])
+
+    let get_supported_languages () =
+      lwt t = get () in
+      Lwt.return (do_get_supported_languages t)
+
     let do_find_id t lang =
       if StringHashtbl.mem t.lang_to_id lang then
         (StringHashtbl.find t.lang_to_id lang)
       else begin
-        let supported = StringHashtbl.fold (fun l _ accum -> l :: accum) t.lang_to_id [] in
+        let supported = do_get_supported_languages t in
         let msg = Printf.sprintf "unknown language: %s (supported: %s)" lang (String.concat "," supported) in
         raise (Failure msg)
         end
@@ -236,6 +244,16 @@ module User = struct
       Lwt_Query.query dbh
        <:update< row in $table$ := {last_visit_date = $date:date$} |
                  row.id = $int32:id$ >>
+
+    let do_update_preferred_lang dbh id lang =
+      lwt preferred_lang = LangDb.find lang in
+      Lwt_Query.query dbh
+       <:update< row in $table$ := {preferred_lang = $int32:preferred_lang$} |
+                 row.id = $int32:id$ >>
+
+    let update_preferred_lang id lang =
+      LangDb.full_transaction_block
+        (fun dbh -> do_update_preferred_lang dbh id lang)
 
     let do_delete dbh user_id =
       Lwt_Query.query dbh

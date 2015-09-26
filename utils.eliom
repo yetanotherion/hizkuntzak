@@ -81,4 +81,19 @@ let create_bootstrap_head () =
         (React.E.map (fun e -> Set e) (React.S.changes t))
   end
 
+  let create_button ?additional_class:(a=[]) t name onclick =
+    let b_class =
+      match t with
+      | `Action -> ["btn"; "btn-primary"; "btn-block"]
+      | `ActionLittle -> ["btn"; "btn-primary"; "btn-xs"]
+      | `Goto -> ["btn"; "btn-success"; "btn-xs"]
+    in
+    let b_class = b_class @ a in
+    let b = Tyxml_js.Html5.(button ~a:[a_class b_class] [pcdata name]) in
+    let () = Lwt_js_events.(async (fun () -> clicks
+                                             (Tyxml_js.To_dom.of_button b)
+                                             (fun _ _ -> onclick ()))) in
+    b
+
+
 }}
