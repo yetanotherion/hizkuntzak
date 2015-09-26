@@ -347,18 +347,16 @@ module Translation = struct
        <:update< row in $table$ := {description = $string:description$} |
                  row.id = $int32:synonym_id$ >>
 
-    let set ?description:(descr="") ?l_lang:(l_lang="eus") l_word r_word r_lang username =
+    let set ?description:(descr="") ?l_lang:(l_lang="eus") l_word r_word r_lang user_id =
       LangDb.full_transaction_block (fun dbh ->
-        lwt user_id = User.get_existing_id dbh username in
         lwt l = Word.get dbh l_word l_lang in
         lwt r = Word.get dbh r_word r_lang in
         match_lwt (get_id dbh l.Word.id r.Word.id user_id) with
           | None -> insert dbh l.Word.id r.Word.id user_id descr
           | Some id -> update_description dbh id descr)
 
-    let unset ?l_lang:(l_lang="eus") l_word r_word r_lang username =
+    let unset ?l_lang:(l_lang="eus") l_word r_word r_lang user_id =
       LangDb.full_transaction_block (fun dbh ->
-        lwt user_id = User.get_existing_id dbh username in
         lwt l_word = Word.get dbh l_word l_lang in
         lwt r_word = Word.get dbh r_word r_lang in
         let query = <:delete< row in $table$ |
@@ -373,9 +371,8 @@ module Translation = struct
         description: string;
       }
 
-    let get_translations ?l_lang:(l_lang="eus") l_word r_lang username =
+    let get_translations ?l_lang:(l_lang="eus") l_word r_lang user_id =
       LangDb.full_transaction_block (fun dbh ->
-        lwt user_id = User.get_existing_id dbh username in
         lwt l_word = Word.get dbh l_word l_lang in
         lwt words_in_lang = Word.words_in_language r_lang in
         let translations = << synonym |
@@ -395,9 +392,8 @@ module Translation = struct
                    row.user_id = $int32:user_id$ >> in
       Lwt_Query.query dbh query
 
-    let delete_user username =
+    let delete_user user_id =
       LangDb.full_transaction_block (fun dbh ->
-        lwt user_id = User.get_existing_id dbh username in
         lwt () = do_delete_all_user_ids_translations dbh user_id in
         User.do_delete dbh user_id)
   end
