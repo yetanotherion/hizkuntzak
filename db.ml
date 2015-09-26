@@ -347,7 +347,7 @@ module Translation = struct
        <:update< row in $table$ := {description = $string:description$} |
                  row.id = $int32:synonym_id$ >>
 
-    let set ?description:(descr="") l_word l_lang r_word r_lang username =
+    let set ?description:(descr="") ?l_lang:(l_lang="eus") l_word r_word r_lang username =
       LangDb.full_transaction_block (fun dbh ->
         lwt user_id = User.get_existing_id dbh username in
         lwt l = Word.get dbh l_word l_lang in
@@ -356,7 +356,7 @@ module Translation = struct
           | None -> insert dbh l.Word.id r.Word.id user_id descr
           | Some id -> update_description dbh id descr)
 
-    let unset l_word l_lang r_word r_lang username =
+    let unset ?l_lang:(l_lang="eus") l_word r_word r_lang username =
       LangDb.full_transaction_block (fun dbh ->
         lwt user_id = User.get_existing_id dbh username in
         lwt l_word = Word.get dbh l_word l_lang in
@@ -373,7 +373,7 @@ module Translation = struct
         description: string;
       }
 
-    let get_translations l_word l_lang r_lang username =
+    let get_translations ?l_lang:(l_lang="eus") l_word r_lang username =
       LangDb.full_transaction_block (fun dbh ->
         lwt user_id = User.get_existing_id dbh username in
         lwt l_word = Word.get dbh l_word l_lang in
