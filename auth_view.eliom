@@ -4,15 +4,13 @@
 
 
   let input_value i = Js.to_string (To_dom.of_input i) ## value
-  let create_input ?input_type:(it=`Text) name = Html5.(input ~a:[a_input_type it; a_class ["form-control"]; a_placeholder name] ())
-
   let wrap_in_form_signin content =
     [Html5.(div ~a:[a_class ["form-signin"]] content)]
 
   let auth_content f create_authenticated_page auth =
     match auth with
     | `Login l -> begin
-        let user, password = create_input "Username", create_input ~input_type:`Password "Password" in
+        let user, password = Utils.(create_input "Username", create_input ~input_type:`Password "Password") in
         let action_button = Utils.create_button `Action "Login"
                                           (fun () ->
                                            let u, p = input_value user, input_value password in
@@ -29,7 +27,7 @@
         wrap_in_form_signin content
       end
     | `CreateAccount ca -> begin
-        let user, pass, confirm = create_input "Username", create_input ~input_type:`Password "Password", create_input ~input_type:`Password "Confirm password" in
+        let user, pass, confirm = Utils.(create_input "Username", create_input ~input_type:`Password "Password", create_input ~input_type:`Password "Confirm password") in
         let action_button = Utils.create_button `Action "Create account"
                                           (fun () ->
                                            let u, p, r = input_value user, input_value pass, input_value confirm in

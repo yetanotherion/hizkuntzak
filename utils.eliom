@@ -111,4 +111,7 @@ let create_bootstrap_head () =
     let body_data = List.map (fun x -> Html5.tr (get_line x)) body in
     let table_body = Html5.([tbody body_data]) in
     Html5.(tablex ~a:[a_class ["table"; "table-striped"]] ~thead:table_head table_body)
+
+  let create_input ?input_type:(it=`Text) name = Tyxml_js.Html5.(input ~a:[a_input_type it; a_class ["form-control"]; a_placeholder name] ())
+
 }}
