@@ -43,7 +43,16 @@ let back_to_init f model =
 
 let add_translation f model source dest description =
   let user_id, preferred_lang = Edit_dictionary_model.(get_user_id model, get_preferred_lang model) in
-  lwt () = %rpc_set_translation (source, dest, description, preferred_lang, user_id) in
-  let () = f (Edit_dictionary_model.add_translation model Utils.Translation.({source; dest; description})) in
+  lwt new_model =
+    match_lwt (%rpc_set_translation (source, dest, description, preferred_lang, user_id)) with
+    |  true -> Lwt.return (Edit_dictionary_model.add_translation model Utils.Translation.({source; dest; description}))
+    | false -> Lwt.return (Edit_dictionary_model.set_translation_error model)
+  in
+  let () = f new_model in
+  Lwt.return_unit
+
+let clear_error f model =
+  let new_model = Edit_dictionary_model.set_translation_ok model in
+  let () = f new_model in
   Lwt.return_unit
 }}

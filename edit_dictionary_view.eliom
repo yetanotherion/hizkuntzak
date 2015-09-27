@@ -28,7 +28,7 @@
     let str = Printf.sprintf "Zure ama hizkuntza %s da. " (preferred_lang_to_string lang) in
     let banner = Html5.(strong [pcdata str]) in
     let under_banner =
-     match model.state with
+     match model.state.preferred_lang_state with
     | `Unit ->
        let button = Utils.create_button `Goto
                                         "Ez, beste bat da nire ama hizkuntza"
@@ -53,6 +53,19 @@
         u_button;
         c_button]
     in
+    let add_translation_state =
+      match model.state.add_translation_state with
+      | `Ok -> []
+      | `Duplicated_translation ->
+         let ok_button = Utils.create_button `ActionLittle
+                                             "Ados ulertu dut"
+                                             (fun () ->
+                                              Edit_dictionary_controller.clear_error f model) in
+         Html5.([br ();
+                 pcdata "Barkatu baina gehitu nahi zenuen sarrera jadanik dago.";
+                 ok_button])
+    in
+    let under_banner = under_banner @ add_translation_state in
     let source, dest, description = Utils.(create_input "hitz berria", create_input "itzulpena", create_input "azalpena") in
     let update = Utils.create_button `ActionLittle
                                      "Gehitu"

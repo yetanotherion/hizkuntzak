@@ -324,7 +324,7 @@ module Translation = struct
         description: string;
       }
 
-    let get_id dbh lword_id rword_id user_id =
+    let get_id_and_description dbh lword_id rword_id user_id =
       let s = <:select< row |
                         row in $table$;
                         row.l_word = $int32:lword_id$;
@@ -332,7 +332,7 @@ module Translation = struct
                         row.user_id = $int32:user_id$>> in
       match_lwt (Lwt_Query.query dbh s) with
         | [] -> Lwt.return None
-        | hd :: _ -> Lwt.return (Some hd#!id)
+        | hd :: _ -> Lwt.return (Some (hd#!id, hd#!description))
 
     let insert dbh lword_id rword_id user_id description =
       Lwt_Query.query dbh
@@ -351,9 +351,17 @@ module Translation = struct
       LangDb.full_transaction_block (fun dbh ->
         lwt l = Word.get dbh l_word l_lang in
         lwt r = Word.get dbh r_word r_lang in
-        match_lwt (get_id dbh l.Word.id r.Word.id user_id) with
-          | None -> insert dbh l.Word.id r.Word.id user_id descr
-          | Some id -> update_description dbh id descr)
+        match_lwt (get_id_and_description dbh l.Word.id r.Word.id user_id) with
+          | None -> begin
+             lwt () = insert dbh l.Word.id r.Word.id user_id descr in
+             Lwt.return true
+            end
+          | Some (id, description) ->
+             if String.compare description descr == 0 then Lwt.return false
+             else begin
+               lwt () = update_description dbh id descr in
+               Lwt.return true
+               end)
 
     let unset ?l_lang:(l_lang="eus") l_word r_word r_lang user_id =
       LangDb.full_transaction_block (fun dbh ->
