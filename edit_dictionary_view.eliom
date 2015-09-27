@@ -6,6 +6,7 @@
     | "en" -> "ingelesa"
     | "ru" -> "errusiera"
     | "fr" -> "frantsesa"
+    | "es" -> "gaztelera"
     | _ -> assert false
 
   let string_to_preferred_lang x =
@@ -13,6 +14,7 @@
     | "ingelesa" -> "en"
     | "errusiera" -> "ru"
     | "frantsesa" -> "fr"
+    | "gaztelera" -> "es"
     | _ -> assert false
 
   let preferred_lang_to_string_declined x =
@@ -20,6 +22,7 @@
     | "en" -> "ingelesez"
     | "ru" -> "errusieraz"
     | "fr" -> "frantsesez"
+    | "es" -> "gazteleraz"
     | _ -> assert false
 
   let translation_ui f model translation =
