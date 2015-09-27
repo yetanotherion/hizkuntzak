@@ -22,7 +22,54 @@
     | "fr" -> "frantsesez"
     | _ -> assert false
 
-  let view_content f model =
+  let translation_ui f model translation =
+    let open Edit_dictionary_model in
+    let x = Translation.(translation.value) in
+    match Translation.(translation.state) with
+    | `Read ->
+       let button = Utils.create_button `ActionLittle
+                                        "Aldatu"
+                                        (fun () ->
+                                         Edit_dictionary_controller.edit_translation f
+                                                                                     model
+                                                                                     translation) in
+        Utils.Translation.([[Html5.pcdata x.source];
+                            [Html5.pcdata x.dest];
+                            [Html5.pcdata x.description;
+                             Html5.br ();
+                             button]])
+     | `Edit ->
+        let cn = Utils.create_input ~name_for_placeholder:false in
+        let source, dest, description = Utils.Translation.(cn x.source, cn x.dest, cn x.description) in
+        let edit_button = Utils.create_button `ActionLittle
+                                              "Gehitu"
+                                              (fun () ->
+                                               let i = Utils.input_value in
+                                               let s, dst, descr = i source, i dest, i description in
+                                               Edit_dictionary_controller.add_translation ~oldval:(Some translation) f
+                                                                                          model
+                                                                                          s dst descr) in
+        let delete_button = Utils.create_button `ActionLittleRed
+                                              "Kendu"
+                                              (fun () ->
+                                               Edit_dictionary_controller.del_translation f
+                                                                                          model
+                                                                                          translation) in
+        let cancel_button = Utils.create_button `Goto
+                                                "Utzi"
+                                                (fun () ->
+                                                 Edit_dictionary_controller.cancel_edit_translation f
+                                                                                                    model
+                                                                                                    translation) in
+
+        Utils.Translation.([[source];
+                            [dest];
+                            [description;
+                             edit_button;
+                             delete_button;
+                             cancel_button]])
+
+ let view_content f model =
     let open Edit_dictionary_model in
     let lang = Edit_dictionary_model.(model.current_user.Current_user.preferred_lang) in
     let str = Printf.sprintf "Zure ama hizkuntza %s da. " (preferred_lang_to_string lang) in
@@ -70,14 +117,21 @@
     let update = Utils.create_button `ActionLittle
                                      "Gehitu"
                                      (fun () ->
-                                      let source, dest, value = Utils.(input_value source, input_value dest, input_value description) in
-                                      Edit_dictionary_controller.add_translation f model source dest value) in
+                                      let source, dest, value = Utils.(input_value source,
+                                                                       input_value dest,
+                                                                       input_value description) in
+                                      Edit_dictionary_controller.add_translation f
+                                                                                 model
+                                                                                 source
+                                                                                 dest
+                                                                                 value) in
     let add_translation = [[source]; [dest]; [description; update]] in
-    let existing = (List.map (fun x -> Utils.Translation.([x.source; x.dest; x.description]))
-                             (get_translations model)) in
-    let pcdata_existing = List.map (fun l -> List.map (fun x -> [Html5.pcdata x]) l) existing in
-    let translations = Utils.create_table ["euskaraz"; preferred_lang_to_string_declined (get_preferred_lang model); "azalpenak"]
-                                          (add_translation :: pcdata_existing) in
+    let existing = List.map (fun trans -> translation_ui f model trans)
+                            (get_translations model) in
+    let translations = Utils.create_table ["euskaraz";
+                                           preferred_lang_to_string_declined (get_preferred_lang model);
+                                           "azalpenak"]
+                                          (add_translation :: existing) in
     let under_banner = under_banner @ [translations] in
     Html5.(banner :: under_banner)
 

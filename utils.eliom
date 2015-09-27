@@ -95,6 +95,7 @@ let create_bootstrap_head () =
       | `Action -> ["btn"; "btn-primary"; "btn-block"]
       | `ActionLittle -> ["btn"; "btn-primary"; "btn-xs"]
       | `Goto -> ["btn"; "btn-success"; "btn-xs"]
+      | `ActionLittleRed -> ["btn"; "btn-danger"; "btn-xs"]
     in
     let b_class = b_class @ a in
     let b = Tyxml_js.Html5.(button ~a:[a_class b_class] [pcdata name]) in
@@ -112,7 +113,10 @@ let create_bootstrap_head () =
     let table_body = Html5.([tbody body_data]) in
     Html5.(tablex ~a:[a_class ["table"; "table-striped"]] ~thead:table_head table_body)
 
-  let create_input ?input_type:(it=`Text) name = Tyxml_js.Html5.(input ~a:[a_input_type it; a_class ["form-control"]; a_placeholder name] ())
+  let create_input ?input_type:(it=`Text) ?name_for_placeholder:(n=true) name =
+    match n with
+    | true -> Tyxml_js.Html5.(input ~a:[a_input_type it; a_class ["form-control"]; a_placeholder name] ())
+    | false ->Tyxml_js.Html5.(input ~a:[a_input_type it; a_class ["form-control"]; a_value name] ())
 
   let input_value i = Js.to_string (Tyxml_js.To_dom.of_input i) ## value
   let select_value s = Js.to_string (Tyxml_js.To_dom.of_select s) ## value
