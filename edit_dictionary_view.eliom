@@ -108,9 +108,7 @@
 
  let view_content f model =
     let open Edit_dictionary_model in
-    let lang = Edit_dictionary_model.(model.current_user.Current_user.preferred_lang) in
-    let str = Printf.sprintf "Zure ama hizkuntza %s da. " (preferred_lang_to_string lang) in
-    let banner = Html5.(strong [pcdata str]) in
+    let banner = Html5.(strong [pcdata "Horra zure hiztegia"]) in
     let add_translation_state =
       match model.state.add_translation_state with
       | `Ok -> []
