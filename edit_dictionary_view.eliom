@@ -79,7 +79,7 @@
       match model.state.preferred_lang_state with
      | `Unit ->
         let button = Utils.create_button `Goto
-                                         "Ez, beste bat da nire ama hizkuntza"
+                                         "Ez, beste hizkuntza bat nahi dut"
                                          (fun () -> Edit_dictionary_controller.change_preferred_lang f model) in
         [Html5.pcdata (lang ^ " ");
          button]
@@ -96,9 +96,9 @@
                                             let input_val = Utils.select_value select in
                                             Edit_dictionary_controller.update_preferred_lang f model (string_to_preferred_lang input_val)) in
 
-        [Html5.pcdata "Nire benetako ama hizkuntza";
+        [Html5.pcdata "Nik ";
          select;
-         Html5.pcdata " da.";
+         Html5.pcdata " nahi dut.";
          u_button;
          c_button]
     in
