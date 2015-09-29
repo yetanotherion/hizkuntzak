@@ -108,7 +108,6 @@
 
  let view_content f model =
     let open Edit_dictionary_model in
-    let banner = Html5.(strong [pcdata "Horra zure hiztegia"]) in
     let add_translation_state =
       match model.state.add_translation_state with
       | `Ok -> []
@@ -139,8 +138,8 @@
                             (get_translations model) in
     let translations = Utils.create_table (create_table_header f model)
                                           (add_translation :: existing) in
-    let under_banner = under_banner @ [translations] in
-    Html5.(banner :: under_banner)
+    under_banner @ [translations]
+
 
   let view ((r, f): Edit_dictionary_model.rp) =
     R.Html5.(div (Utils.ReactList.list (React.S.map (view_content f) r)))
