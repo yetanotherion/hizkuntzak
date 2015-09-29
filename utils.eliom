@@ -106,7 +106,7 @@ let create_bootstrap_head () =
 
   let create_table header body =
     let open Tyxml_js in
-    let header_data = Html5.(List.map (fun x -> th [pcdata x])) header in
+    let header_data = Html5.(List.map (fun x -> th x)) header in
     let table_head = Html5.(thead [tr header_data]) in
     let get_line line_elements = List.map Html5.(fun elt -> td elt) line_elements in
     let body_data = List.map (fun x -> Html5.tr (get_line x)) body in
