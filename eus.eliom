@@ -45,6 +45,7 @@ module IndicativePastPresentShared = struct
   let other_number_of_questions = [1; 10; 25; 50; 100]
   let correct_answer_message = "Oso ondo !"
   let bad_answer_prefix = "Zuzenketa: "
+  type create_arg = unit
   let v_mode_argument =
     let open Games in
     {argument_description = "In which mode would you like to conjugate the verbs?";
@@ -128,7 +129,7 @@ module IndicativePastPresentShared = struct
       | "all" -> `All
       | _ -> assert(false)
 
-  let create arg =
+  let create _ arg =
     let v_mode, t_mode = arg.(0), arg.(1) in
     {
       v_mode = v_mode_of_string v_mode;
@@ -283,6 +284,7 @@ let service unused unused_bis =
       inputs.restart_game_button
       inputs.help_inputs
       other_inputs
+      ()
   }}
   in
   IndicativeServer.return_page inputs

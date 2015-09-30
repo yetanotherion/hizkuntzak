@@ -61,12 +61,14 @@ module type SharedGameConf =
     val correct_answer_message: string
     val bad_answer_prefix: string
     val arguments: arguments
-    (* the first argument of type string array
+    (* the type of the first argument to create t *)
+    type create_arg
+    (* the second argument of type string array
        is the list of arguments gathered from inputs
        in the same order as declared in arguments.
        these arguments can be used to limit the set
        of generated questions in the game *)
-    val create: string array -> t
+    val create: create_arg -> string array -> t
     val generate_question: t -> question
     (* the second argument of type string option
        is the optional answer of the question, already
@@ -226,6 +228,7 @@ struct
     start_game_div: Dom_html.divElement Js.t;
     game_ongoing_div: Dom_html.divElement Js.t;
     help_inputs: help_inputs option;
+    create_arg: GC.create_arg;
   }
 
   let focus_on_answer answer_input = answer_input##focus()
@@ -324,7 +327,7 @@ struct
         | Some h -> Utils.show_element h.help_button
     in
     let nb_questions, others = get_input_params t.game_params in
-    let () = t.current_game <- Some (GC.create others) in
+    let () = t.current_game <- Some (GC.create t.create_arg others) in
     t.current_score <- Some (Score.create nb_questions)
 
   let display_result t score =
@@ -392,7 +395,7 @@ struct
     let () = Utils.show_element t.start_game_div in
     Lwt.return_unit
 
-  let create question answer_input answer_output game_params start_game_div game_ongoing_div result_div h =
+  let create question answer_input answer_output game_params start_game_div game_ongoing_div result_div h arg =
     let () = Random.self_init () in
     let answer_input = Html5.To_dom.of_input answer_input in
     let res =
@@ -408,7 +411,8 @@ struct
         start_game_div = Html5.To_dom.of_div start_game_div;
         game_ongoing_div = Html5.To_dom.of_div game_ongoing_div;
         help_inputs = create_help (fun () ->
-          focus_on_answer answer_input) h;
+                                   focus_on_answer answer_input) h;
+        create_arg = arg;
       } in
     res
 
@@ -443,14 +447,15 @@ struct
       answer_button
       restart_game_button
       help_inputs
-      other_inputs =
+      other_inputs
+      create_arg =
     let game_mode = create_inputs
       (Html5.To_dom.of_select nquestion_input)
       (Html5.To_dom.of_button start_game_button)
       (Html5.To_dom.of_button answer_button)
       (Html5.To_dom.of_button restart_game_button)
       (Array.map Html5.To_dom.of_select other_inputs) in
-    let t = create qb answer_input answer_output game_mode start_game_div game_ongoing_div result_div help_inputs in
+    let t = create qb answer_input answer_output game_mode start_game_div game_ongoing_div result_div help_inputs create_arg in
     setup t
 end
 }}

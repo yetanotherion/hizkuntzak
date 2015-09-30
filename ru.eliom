@@ -248,7 +248,8 @@ module SharedDictionary = struct
   let correct_answer_message = "хорошо !"
   let bad_answer_prefix = "правильный ответ: "
   let arguments = Array.of_list []
-  let create _ = Random.self_init ()
+  type create_arg = unit
+  let create _ _ = Random.self_init ()
 
   type question = [ `Greeting of Greeting.t
                   | `Geography of Geography.t
@@ -359,6 +360,7 @@ let service u u_bis =
       inputs.restart_game_button
       inputs.help_inputs
       other_inputs
+      ()
   }}
   in
   RuDictServer.return_page inputs
