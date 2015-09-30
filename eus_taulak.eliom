@@ -18,7 +18,7 @@ open Tyxml_js
      }
 
    let create_input label default_value other_values =
-     let r = Html5.(select (List.map (fun x -> (option (pcdata x))) (default_value :: other_values))) in
+     let r = Utils.create_select (default_value :: other_values) in
      (Html5.pcdata label, r)
 
    let create_nor () = create_input "Nor" "ni" ["hi";
@@ -214,7 +214,7 @@ open Tyxml_js
 let service unused unused_bis =
   let all_div = Eliom_content.Html5.F.(div ~a:[a_class ["centered"]; a_id "main"] []) in
   let _ = {unit{
-    let verb_mode = Tyxml_js.Html5.(select (List.map (fun x -> option (pcdata x)) ["nor/nork"; "nor/nori"])) in
+    let verb_mode = Utils.create_select ["nor/nork"; "nor/nori"] in
     let verb_div = Html5.div [verb_mode] in
     let param_div = Html5.div [] in
     let t = create verb_mode param_div in

@@ -84,7 +84,7 @@
         [Html5.pcdata (lang ^ " ");
          button]
      | `Change_preferred_lang l ->
-        let select = Html5.(select (List.map (fun x -> option (pcdata (preferred_lang_to_string x))) l)) in
+        let select = Utils.create_select (List.map (fun x -> (preferred_lang_to_string x)) l) in
         let c_button = Utils.create_button `Goto
                                          "Utzi"
                                          (fun () -> Edit_dictionary_controller.back_to_init f model) in

@@ -120,4 +120,8 @@ let create_bootstrap_head () =
 
   let input_value i = Js.to_string (Tyxml_js.To_dom.of_input i) ## value
   let select_value s = Js.to_string (Tyxml_js.To_dom.of_select s) ## value
+  let create_select elements =
+    let str_to_opt str = Tyxml_js.Html5.(option (pcdata str)) in
+    Tyxml_js.Html5.select (List.map str_to_opt elements)
+
 }}

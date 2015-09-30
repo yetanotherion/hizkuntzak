@@ -422,18 +422,17 @@ struct
     setup_help t
 
   let game_mode_inputs () =
-    let str_to_opt str = Html5.(option (pcdata str)) in
-    let its i_arg = str_to_opt (Printf.sprintf "%d" i_arg) in
+    let its i_arg = Printf.sprintf "%d" i_arg in
     let select_args = (its GC.default_num_of_questions) :: (List.map its GC.other_number_of_questions) in
     let n_inputs =
       "How many questions would you like in that game ?",
-      Html5.(select select_args)
+      Utils.create_select select_args
     in
     let others =
       Array.map (fun x ->
                  let arguments = x.default_argument :: x.non_default_arguments in
                  x.argument_description,
-                 Html5.select (List.map str_to_opt arguments))
+                 Utils.create_select arguments)
                 GC.arguments
     in
     n_inputs, Array.to_list others
