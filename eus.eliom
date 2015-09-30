@@ -13,10 +13,10 @@
 (*  implied.  See the License for the specific language governing         *)
 (*  permissions and limitations under the License.                        *)
 (**************************************************************************)
-{shared{
+{client{
 open Eliom_lib
 open Eliom_content
-open Html5.D
+open Tyxml_js
 
 module RandomVerbs: sig
   val random_nor_verb: unit -> string
@@ -39,7 +39,6 @@ module IndicativePastPresentShared = struct
     v_mode: [ `Nor | `NorNork | `NorNori | `All ];
     t_mode: [ `Past | `Present | `All ];
   }
-  let title = "indicative"
   let description = "The first game consists at conjugating verbs"
   let default_num_of_questions = 5
   let other_number_of_questions = [1; 10; 25; 50; 100]
@@ -202,7 +201,7 @@ module IndicativePastPresentClient = struct
 
   let create_help_button refocus_after_click t f =
     let play_help = Games.create_button `Info "Show me how it works" in
-    let help_dom = Html5.To_dom.of_button play_help in
+    let help_dom = To_dom.of_button play_help in
     let on_play_help _ _ =
       let () = refocus_after_click () in
       let () = Lwt.async (fun () -> f ()) in
@@ -219,14 +218,14 @@ module IndicativePastPresentClient = struct
     let t = create_animation height width canvas in
     let play_help = create_help_button refocus_after_click t (fun () -> start_animation t param) in
     let elts = [canvas; play_help] in
-    let trs = List.map (fun elt -> tr [td [elt]]) elts in
-    let anim_elt = tablex ~a:[a_class ["centered"]] ~thead:(thead []) [tbody trs] in
-    (Some (mode, t), [Html5.To_dom.of_element anim_elt])
+    let trs = List.map (fun elt -> Html5.(tr [td [elt]])) elts in
+    let anim_elt = Html5.(tablex ~a:[a_class ["centered"]] ~thead:(thead []) [tbody trs]) in
+    (Some (mode, t), [To_dom.of_element anim_elt])
 
   let get_animation refocus_after_click question =
     let mode, all_question, time = (question: question) in
-    let help_no_available = pcdata "Sorry that question does not have help for now" in
-    let not_available = None, [Html5.To_dom.of_element help_no_available] in
+    let help_no_available = Html5.pcdata "Sorry that question does not have help for now" in
+    let not_available = None, [To_dom.of_element help_no_available] in
     match mode with
       | `Nor _ -> not_available
       | `NorNori norNori -> begin
@@ -248,45 +247,28 @@ module IndicativePastPresentClient = struct
     Some {
       Games.get_help = (get_animation refocus_after_click);
       Games.stop_help = stop_animation;
-    }
+      }
+  let is_there_help = true
 end
 
-module IndicativeClient = Games.MakeClient(IndicativePastPresentClient)
+module IndicativeClient = Games.Make(IndicativePastPresentClient)
 }}
 
 {server{
-
-module IndicativePastPresentServer = struct
-  include IndicativePastPresentShared
-  let is_there_help = true
-end
-module IndicativeServer = Games.MakeServer(IndicativePastPresentServer)
+open Eliom_content
+open Html5.D
 
 let service unused unused_bis =
-  let inputs = IndicativeServer.create_html_elements () in
   let _ = {unit{
-    (* we cannot use functors in {unit{ }} sections,
-       at least I got a syntax error
-       so this work around was implemented *)
-    let inputs = %inputs in
-    let open Games.GameHtmlElements in
-    let other_inputs = Array.of_list inputs.other_inputs in
-    IndicativeClient.create_and_setup
-      inputs.question_board
-      inputs.answer_input
-      inputs.answer_output
-      inputs.start_game_div
-      inputs.game_ongoing_div
-      inputs.result_div
-      inputs.nquestions_input
-      inputs.start_game_button
-      inputs.answer_button
-      inputs.restart_game_button
-      inputs.help_inputs
-      other_inputs
-      ()
+    let doc = Dom_html.document in
+    let parent =
+      Js.Opt.get (doc##getElementById(Js.string "main"))
+        (fun () -> assert false)
+    in
+    IndicativeClient.create_and_setup parent ()
   }}
   in
-  IndicativeServer.return_page inputs
+  Games.return_page "indicative"
+
 
 }}

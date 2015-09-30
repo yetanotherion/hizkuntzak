@@ -14,7 +14,7 @@
 (*  permissions and limitations under the License.                        *)
 (**************************************************************************)
 
-{shared{
+{client{
 
 module Greeting = struct
   type t = [ `Hello
@@ -240,14 +240,15 @@ module Numbers = struct
     match x with
     | `Quarter -> "четверть"
 end
-module SharedDictionary = struct
-  let title = "dictionary"
+
+module Dictionary = struct
   let description = "Improve your dictionary"
   let default_num_of_questions = 5
   let other_number_of_questions = [1; 10; 25; 50; 100]
   let correct_answer_message = "хорошо !"
   let bad_answer_prefix = "правильный ответ: "
   let arguments = Array.of_list []
+  let is_there_help = false
   type create_arg = unit
   let create _ _ = Random.self_init ()
 
@@ -320,48 +321,27 @@ module SharedDictionary = struct
       | `Time t -> Time.to_russian t
       | `Numbers n -> Numbers.to_russian n
 
-end
-}}
-
-{client{
-module ClientDictionary = struct
-  include SharedDictionary
   type help_t = unit
   type helper = (help_t, question) Games._helper
   let get_help _ = None
 end
 
-module RuDictClient = Games.MakeClient(ClientDictionary)
+module RuDictClient = Games.Make(Dictionary)
+
 }}
 
 {server{
-module ServerDictionary = struct
-  include SharedDictionary
-  let is_there_help = false
-end
-module RuDictServer = Games.MakeServer(ServerDictionary)
 
 let service u u_bis =
-  let inputs = RuDictServer.create_html_elements () in
   let _ = {unit{
-    let inputs = %inputs in
-    let open Games.GameHtmlElements in
-    let other_inputs = Array.of_list inputs.other_inputs in
-    RuDictClient.create_and_setup
-      inputs.question_board
-      inputs.answer_input
-      inputs.answer_output
-      inputs.start_game_div
-      inputs.game_ongoing_div
-      inputs.result_div
-      inputs.nquestions_input
-      inputs.start_game_button
-      inputs.answer_button
-      inputs.restart_game_button
-      inputs.help_inputs
-      other_inputs
-      ()
+    let doc = Dom_html.document in
+    let parent =
+      Js.Opt.get (doc##getElementById(Js.string "main"))
+        (fun () -> assert false)
+    in
+    RuDictClient.create_and_setup parent ()
   }}
   in
-  RuDictServer.return_page inputs
+  Games.return_page "dictionary"
+
 }}

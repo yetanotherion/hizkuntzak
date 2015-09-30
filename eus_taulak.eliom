@@ -1,8 +1,7 @@
 {shared{
 open Eliom_lib
 open Eliom_content
-open Html5.D
-
+open Tyxml_js
 }}
 
 {client{
@@ -13,14 +12,14 @@ open Html5.D
 
 
    type ('select, 'div) t = {
-       verb_mode:([> Html5_types.select ] as 'select) Eliom_content.Html5.D.elt;
-       div:([> Html5_types.div ] as 'div) Eliom_content.Html5.D.elt;
+       verb_mode:([> Html5_types.select ] as 'select) Html5.elt;
+       div:([> Html5_types.div ] as 'div) Html5.elt;
        mutable curr_mode: current_mode_params;
      }
 
    let create_input label default_value other_values =
-     let r = Utils.build_raw_select label default_value other_values in
-     (pcdata label, r)
+     let r = Html5.(select (List.map (fun x -> (option (pcdata x))) (default_value :: other_values))) in
+     (Html5.pcdata label, r)
 
    let create_nor () = create_input "Nor" "ni" ["hi";
                                                 "hura";
@@ -53,15 +52,15 @@ open Html5.D
 
 
    let display_verbs_params_out_of_inputs v =
-     let verb_mode = Utils.get_input_text (Html5.To_dom.of_select v) in
+     let verb_mode = Utils.get_input_text (To_dom.of_select v) in
      let height, width = 300, 700 in
-     let canvas = E.create_canvas_elt height width in
+     let mycanvas = E.create_canvas_elt height width in
      let create_two_dimensional_table first second f_animation =
-       let animation = f_animation height width canvas in
-       let trs = [tr [td first];
-                  tr [td second];
-                  tr [td [canvas]]] in
-       tablex ~a:[a_class ["centered"]] ~thead:(thead []) [tbody trs],
+       let animation = f_animation height width mycanvas in
+       let trs = Html5.([tr [td first];
+                         tr [td second];
+                         tr [td [mycanvas]]]) in
+       Html5.(tablex ~a:[a_class ["centered"]] ~thead:(thead []) [tbody trs]),
        animation
      in
 
@@ -72,7 +71,7 @@ open Html5.D
            let t, a = create_two_dimensional_table [nork_label; nork_select]
                                                    [nor_label; nor_select] E.NorNorkAnimation.create_animation in
            (t,
-            `NorNork (Html5.To_dom.of_select nork_select, Html5.To_dom.of_select nor_select, a))
+            `NorNork (To_dom.of_select nork_select, To_dom.of_select nor_select, a))
          end
        | `NorNori -> begin
            let nor_label, nor_select = create_nor () in
@@ -80,7 +79,7 @@ open Html5.D
            let t, a = create_two_dimensional_table [nor_label; nor_select]
                                                    [nori_label; nori_select] E.NorNoriAnimation.create_animation in
            (t,
-            `NorNori (Html5.To_dom.of_select nor_select, Html5.To_dom.of_select nori_select, a))
+            `NorNori (To_dom.of_select nor_select, To_dom.of_select nori_select, a))
          end
 
    let nor_of_string x =
@@ -166,7 +165,7 @@ open Html5.D
      let () =
        if create_all then
          let new_div, curr_mode = display_verbs_params_out_of_inputs t.verb_mode in
-         let () = Html5.Manip.replaceChildren t.div [new_div] in
+         let () = Games.replaceChildren (To_dom.of_div t.div) [To_dom.of_table new_div] in
          let () = t.curr_mode <- curr_mode in
          setup_curr_mode t
      in
@@ -175,7 +174,7 @@ open Html5.D
 
    let setup t =
      let open Lwt_js_events in
-     let v_mode = Html5.To_dom.of_select t.verb_mode in
+     let v_mode = To_dom.of_select t.verb_mode in
      let () = async (fun () ->
                      inputs v_mode (on_any_event ~create_all:true t)) in
      (* XXX this is copy/pasted from above
@@ -203,7 +202,7 @@ open Html5.D
 
    let create v div =
      let new_div, curr_mode = display_verbs_params_out_of_inputs v in
-     let () = Html5.Manip.replaceChildren div [new_div] in
+     let () = Games.replaceChildren (To_dom.of_div div) [(To_dom.of_table new_div)] in
      {verb_mode=v;
       div=div;
       curr_mode=curr_mode}
@@ -213,15 +212,22 @@ open Html5.D
 {server{
 
 let service unused unused_bis =
-  let verb_mode = Utils.build_raw_select "mode" "nor/nork" ["nor/nori"] in
-  let param_div = div [] in
-  let all_div = div ~a:[a_class ["centered"]] [verb_mode; param_div] in
+  let all_div = Eliom_content.Html5.F.(div ~a:[a_class ["centered"]; a_id "main"] []) in
   let _ = {unit{
-    let t = create %verb_mode %param_div in
-    setup t
+    let verb_mode = Tyxml_js.Html5.(select (List.map (fun x -> option (pcdata x)) ["nor/nork"; "nor/nori"])) in
+    let verb_div = Html5.div [verb_mode] in
+    let param_div = Html5.div [] in
+    let t = create verb_mode param_div in
+    let () = setup t in
+    let doc = Dom_html.document in
+    let parent =
+      Js.Opt.get (doc##getElementById(Js.string "main"))
+        (fun () -> assert false)
+    in
+    Games.replaceChildren parent [To_dom.of_div verb_div; To_dom.of_div param_div]
   }} in
   let otherh = Utils.create_bootstrap_head () in
-  let b = Html5.F.(body [all_div]) in
+  let b = Eliom_content.Html5.F.(body [all_div]) in
   let res = Eliom_tools.F.html ~title:"taulak" ~css:[["css";"hizkuntzak.css"]]
       ~other_head:otherh b in
   Lwt.return res

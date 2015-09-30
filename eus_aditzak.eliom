@@ -13,13 +13,14 @@
 (*  implied.  See the License for the specific language governing         *)
 (*  permissions and limitations under the License.                        *)
 (**************************************************************************)
-{shared{
+{client{
 open Eliom_content
+open Tyxml_js
 
 let create_canvas_elt height width =
-  Html5.D.canvas ~a:[ Html5.D.a_width width; Html5.D.a_height height ]
-           [Html5.D.pcdata "your browser doesn't support canvas";
-            Html5.D.br ()]
+  Html5.(canvas ~a:[a_width width; a_height height ]
+                [pcdata "your browser doesn't support canvas";
+                 br ()])
 
 module Questions = struct
   type genre = [ `Male | `Female ]
@@ -63,7 +64,7 @@ let reset t =
   ctx##clearRect(0.0, 0.0, t.zone.width, t.zone.height)
 
 let create height width canvas =
-  let dom_canvas = Html5.To_dom.of_canvas canvas in
+  let dom_canvas = To_dom.of_canvas canvas in
   {
     zone = create_rect 0.0 0.0 (float_of_int height) (float_of_int width);
     canvas = dom_canvas;
