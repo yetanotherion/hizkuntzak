@@ -89,4 +89,14 @@ let cancel_edit_translation f model translation =
   let () = f new_model in
   Lwt.return_unit
 
+let back_to_learning f model =
+  let new_model = Edit_dictionary_model.back_to_learning model in
+  let () = f new_model in
+  Lwt.return_unit
+
+let goto_play f model =
+  let new_model = Edit_dictionary_model.goto_play model in
+  let () = f new_model in
+  Lwt.return_unit
+
 }}

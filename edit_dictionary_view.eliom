@@ -106,8 +106,20 @@
             mother_lang_ui;
             [pcdata "azalpenak"]])
 
- let view_content f model =
-    let open Edit_dictionary_model in
+ let view_play f model =
+   let div = Html5.div [] in
+   let button = Utils.create_button `ActionLittle
+                                    "Hiztegira itzuli"
+                                    (fun () ->
+                                     Edit_dictionary_controller.back_to_learning f model) in
+   let translations = Edit_dictionary_model.get_translations model in
+   let pairs = List.map (fun x -> let x = Edit_dictionary_model.get_translation x in
+                                  Utils.Translation.(x.source, x.dest)) translations in
+   let () = Dictionary_game.Client.create_and_setup (To_dom.of_div div) pairs in
+   [button; div]
+
+ let view_learn f model =
+   let open Edit_dictionary_model in
     let add_translation_state =
       match model.state.add_translation_state with
       | `Ok -> []
@@ -121,6 +133,11 @@
                  ok_button])
     in
     let under_banner = add_translation_state in
+    let play_button = Utils.create_button `ActionLittle
+                                          "Jolasten hasi"
+                                          (fun () ->
+                                           Edit_dictionary_controller.goto_play f model) in
+
     let source, dest, description = Utils.(create_input "hitz berria", create_input "itzulpena", create_input "azalpena") in
     let update = Utils.create_button `ActionLittle
                                      "Gehitu"
@@ -138,8 +155,13 @@
                             (get_translations model) in
     let translations = Utils.create_table (create_table_header f model)
                                           (add_translation :: existing) in
-    under_banner @ [translations]
+    under_banner @ [play_button; translations]
 
+ let view_content f model =
+   let open Edit_dictionary_model in
+   match model.global_state with
+   | `Learn -> view_learn f model
+   | `Play -> view_play f model
 
   let view ((r, f): Edit_dictionary_model.rp) =
     R.Html5.(div (Utils.ReactList.list (React.S.map (view_content f) r)))

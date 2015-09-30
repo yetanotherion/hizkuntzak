@@ -1,10 +1,13 @@
 {client{
   type preferred_lang_state = [`Unit | `Change_preferred_lang of string list]
   type add_translation_state = [`Ok | `Duplicated_translation]
+  type global_state = [`Learn | `Play]
   type state = {preferred_lang_state: preferred_lang_state;
-                add_translation_state: add_translation_state}
+                add_translation_state: add_translation_state }
+
+
   module Translation = struct
-      type state = [`Read | `Edit]
+      type state = [`Read | `Edit ]
       type t = {
           state: state;
           value: Utils.Translation.t;
@@ -14,6 +17,7 @@
       current_user: Current_user.t;
       state: state;
       translations: Translation.t list;
+      global_state: global_state;
     }
 
   type rs = t React.signal
@@ -22,7 +26,7 @@
 
   let create current_user = {current_user; state={preferred_lang_state=`Unit;
                                                   add_translation_state=`Ok};
-                             translations=[]}
+                             translations=[]; global_state=`Learn}
 
   let get_user_id t = Current_user.(get_user_id t.current_user)
   let get_preferred_lang t = Current_user.(get_preferred_lang t.current_user)
@@ -83,5 +87,10 @@
   let delete_translation_from_model model translation =
     update_translations model (delete_translation model translation)
 
+  let back_to_learning model =
+    {model with global_state = `Learn }
+
+  let goto_play model =
+    {model with global_state = `Play }
 
 }}
