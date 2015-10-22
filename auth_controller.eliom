@@ -27,15 +27,15 @@ let get_current_user_id () =
     | Some uid -> Lwt.return (Some uid)
 
 let get_user_of_id id =
-  lwt (u, p, id, lang) = Db.User.get_existing_user_from_id id in
-  Lwt.return (Current_user.create u p id lang)
+  lwt (u, p, id, src_lang, dst_lang) = Db.User.get_existing_user_from_id id in
+  Lwt.return (Current_user.create u p id src_lang dst_lang)
 
 let get_current_user () =
   match_lwt get_current_user_id () with
   | None -> Lwt.return None
   | Some id ->
-     lwt (u, p, id, lang) = Db.User.get_existing_user_from_id id in
-     Lwt.return (Some (Current_user.create u p id lang))
+     lwt (u, p, id, src_lang, dst_lang) = Db.User.get_existing_user_from_id id in
+     Lwt.return (Some (Current_user.create u p id src_lang dst_lang))
 
 let connect uid =
   lwt () = Eliom_state.set_persistent_data_session_group

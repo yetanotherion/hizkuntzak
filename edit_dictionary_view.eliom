@@ -7,6 +7,7 @@
     | "ru" -> "errusiera"
     | "fr" -> "frantsesa"
     | "es" -> "gaztelera"
+    | "eus" -> "euskara"
     | _ -> assert false
 
   let string_to_preferred_lang x =
@@ -15,6 +16,7 @@
     | "errusiera" -> "ru"
     | "frantsesa" -> "fr"
     | "gaztelera" -> "es"
+    | "euskara" -> "eus"
     | _ -> assert false
 
   let preferred_lang_to_string_declined x =
@@ -23,6 +25,7 @@
     | "ru" -> "errusieraz"
     | "fr" -> "frantsesez"
     | "es" -> "gazteleraz"
+    | "eus" -> "euskaraz"
     | _ -> assert false
 
   let translation_ui f model translation =
@@ -71,40 +74,55 @@
                              edit_button;
                              delete_button;
                              cancel_button]])
+ let create_src_or_dst_lang_ui f model src_or_dst =
+    let open Edit_dictionary_model in
+    let lang, state =
+      match src_or_dst with
+      | `Src -> get_preferred_lang_src model,
+                model.state.src_preferred_lang_state
+      | `Dst -> get_preferred_lang_dst model,
+                model.state.dst_preferred_lang_state
+    in
+    let lang = preferred_lang_to_string_declined lang in
+    match state with
+    | `Unit ->
+       let button = Utils.create_button `Goto
+                                        "Ez, beste hizkuntza bat nahi dut"
+                                        (fun () -> Edit_dictionary_controller.change_preferred_lang f
+                                                                                                    model
+                                                                                                    src_or_dst) in
+       [Html5.pcdata (lang ^ " ");
+        button]
+    | `Change_preferred_lang l ->
+       let select = Utils.create_select (List.map (fun x -> (preferred_lang_to_string x)) l) in
+       let c_button = Utils.create_button `Goto
+                                          "Utzi"
+                                          (fun () -> Edit_dictionary_controller.back_to_init f
+                                                                                             model
+                                                                                             src_or_dst) in
+
+
+       let u_button = Utils.create_button `ActionLittle
+                                          "Eguneratu"
+                                          (fun () ->
+                                           let input_val = Utils.select_value select in
+                                           Edit_dictionary_controller.update_preferred_lang f
+                                                                                            model
+                                                                                            src_or_dst
+                                                                                            (string_to_preferred_lang input_val)) in
+
+       [Html5.pcdata "Nik ";
+        select;
+        Html5.pcdata " nahi dut.";
+        u_button;
+        c_button]
 
  let create_table_header f model =
-    let open Edit_dictionary_model in
-    let lang = preferred_lang_to_string_declined (get_preferred_lang model) in
-    let mother_lang_ui =
-      match model.state.preferred_lang_state with
-     | `Unit ->
-        let button = Utils.create_button `Goto
-                                         "Ez, beste hizkuntza bat nahi dut"
-                                         (fun () -> Edit_dictionary_controller.change_preferred_lang f model) in
-        [Html5.pcdata (lang ^ " ");
-         button]
-     | `Change_preferred_lang l ->
-        let select = Utils.create_select (List.map (fun x -> (preferred_lang_to_string x)) l) in
-        let c_button = Utils.create_button `Goto
-                                         "Utzi"
-                                         (fun () -> Edit_dictionary_controller.back_to_init f model) in
-
-
-        let u_button = Utils.create_button `ActionLittle
-                                           "Eguneratu"
-                                           (fun () ->
-                                            let input_val = Utils.select_value select in
-                                            Edit_dictionary_controller.update_preferred_lang f model (string_to_preferred_lang input_val)) in
-
-        [Html5.pcdata "Nik ";
-         select;
-         Html5.pcdata " nahi dut.";
-         u_button;
-         c_button]
-    in
-    Html5.([[pcdata "euskaraz"];
-            mother_lang_ui;
-            [pcdata "azalpenak"]])
+   let src_ui = create_src_or_dst_lang_ui f model `Src in
+   let dst_ui = create_src_or_dst_lang_ui f model `Dst in
+   Html5.([src_ui;
+           dst_ui;
+           [pcdata "azalpenak"]])
 
  let view_play f model =
    let div = Html5.div [] in

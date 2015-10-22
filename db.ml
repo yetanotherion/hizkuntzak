@@ -112,7 +112,7 @@ module LangDb: (sig
       Lwt_pool.use t.pool f
 
     let do_get_supported_languages t =
-      List.filter (fun x -> x <> "eus") (StringHashtbl.fold (fun l _ accum -> l :: accum) t.lang_to_id [])
+      StringHashtbl.fold (fun l _ accum -> l :: accum) t.lang_to_id []
 
     let get_supported_languages () =
       lwt t = get () in
@@ -222,20 +222,25 @@ module User = struct
                  id integer NOT NULL DEFAULT(nextval $id$),
                  username text NOT NULL,
                  password text NOT NULL,
-                 preferred_lang integer NOT NULL,
+                 preferred_lang_src integer NOT NULL,
+                 preferred_lang_dst integer NOT NULL,
                  last_visit_date date NOT NULL) >>
 
     let hash_password password = Bcrypt.string_of_hash (Bcrypt.hash password)
     let verify_password p1 p2 = Bcrypt.verify p1 (Bcrypt.hash_of_string p2)
+    let default_src_lang = "eus"
+    let default_dst_lang = "en"
 
     let do_insert dbh username password =
-      lwt preferred_lang = LangDb.find "en" in
+      lwt preferred_lang_src = LangDb.find default_src_lang in
+      lwt preferred_lang_dst = LangDb.find default_dst_lang in
       let date =  get_current_date () in
       Lwt_Query.query dbh
        <:insert< $table$ := {username = $string:username$;
                              password = $string:hash_password password$;
                              id = table?id;
-                             preferred_lang = $int32:preferred_lang$;
+                             preferred_lang_src = $int32:preferred_lang_src$;
+                             preferred_lang_dst = $int32:preferred_lang_dst$;
                              last_visit_date = $date:date$;
                             } >>
 
@@ -245,15 +250,25 @@ module User = struct
        <:update< row in $table$ := {last_visit_date = $date:date$} |
                  row.id = $int32:id$ >>
 
-    let do_update_preferred_lang dbh id lang =
+    let do_update_preferred_lang_src dbh id lang =
       lwt preferred_lang = LangDb.find lang in
       Lwt_Query.query dbh
-       <:update< row in $table$ := {preferred_lang = $int32:preferred_lang$} |
+       <:update< row in $table$ := {preferred_lang_src = $int32:preferred_lang$} |
                  row.id = $int32:id$ >>
 
-    let update_preferred_lang id lang =
+    let do_update_preferred_lang_dst dbh id lang =
+      lwt preferred_lang = LangDb.find lang in
+      Lwt_Query.query dbh
+       <:update< row in $table$ := {preferred_lang_dst = $int32:preferred_lang$} |
+                 row.id = $int32:id$ >>
+
+    let update_preferred_lang_src id lang =
       LangDb.full_transaction_block
-        (fun dbh -> do_update_preferred_lang dbh id lang)
+        (fun dbh -> do_update_preferred_lang_src dbh id lang)
+
+    let update_preferred_lang_dst id lang =
+      LangDb.full_transaction_block
+        (fun dbh -> do_update_preferred_lang_dst dbh id lang)
 
     let do_delete dbh user_id =
       Lwt_Query.query dbh
@@ -297,8 +312,9 @@ module User = struct
       match res with
        | [] -> assert(false)
        | hd :: _ ->
-          lwt lang = LangDb.find_lang hd#!preferred_lang in
-          Lwt.return (hd#!username, hd#!password, hd#!id, lang)
+          lwt lang_src = LangDb.find_lang hd#!preferred_lang_src in
+          lwt lang_dst = LangDb.find_lang hd#!preferred_lang_dst in
+          Lwt.return (hd#!username, hd#!password, hd#!id, lang_src, lang_dst)
 
     let get_existing_user_from_id id =
       LangDb.full_transaction_block
@@ -347,7 +363,7 @@ module Translation = struct
        <:update< row in $table$ := {description = $string:description$} |
                  row.id = $int32:synonym_id$ >>
 
-    let set ?description:(descr="") ?l_lang:(l_lang="eus") l_word r_word r_lang user_id =
+    let set ?description:(descr="") l_word r_word l_lang r_lang user_id =
       LangDb.full_transaction_block (fun dbh ->
         lwt l = Word.get dbh l_word l_lang in
         lwt r = Word.get dbh r_word r_lang in
@@ -363,7 +379,7 @@ module Translation = struct
                Lwt.return true
                end)
 
-    let unset ?l_lang:(l_lang="eus") l_word r_word r_lang user_id =
+    let unset l_word r_word l_lang r_lang user_id =
       LangDb.full_transaction_block (fun dbh ->
         lwt l_word = Word.get dbh l_word l_lang in
         lwt r_word = Word.get dbh r_word r_lang in
@@ -373,7 +389,7 @@ module Translation = struct
                               row.user_id = $int32:user_id$ >> in
         Lwt_Query.query dbh query)
 
-    let get_translations ?l_lang:(l_lang="eus") ?l_word:(l_word=None) user_id r_lang =
+    let get_translations ?l_word:(l_word=None) user_id l_lang r_lang =
       LangDb.full_transaction_block (fun dbh ->
         lwt words_in_r_lang = Word.words_in_language r_lang in
         lwt words_in_l_lang = Word.words_in_language l_lang in

@@ -1,56 +1,98 @@
 {server{
 
-let update_preferred_lang (id, lang) = Db.User.update_preferred_lang id lang
-let get_translations (id, lang) = Db.Translation.get_translations id lang
-let set_translation (lword, rword, descr, rlang, user_id) = Db.Translation.set lword rword rlang ~description:descr user_id
-let unset_translation (lword, rword, lang, user_id) = Db.Translation.unset lword rword lang user_id
+let update_preferred_lang_src (id, lang) =
+  Db.User.update_preferred_lang_src id lang
+let update_preferred_lang_dst (id, lang) =
+  Db.User.update_preferred_lang_dst id lang
+let get_translations (id, src_lang, dst_lang) =
+  Db.Translation.get_translations id src_lang dst_lang
+let set_translation (lword, rword, descr, src_lang, dst_lang, user_id) =
+  Db.Translation.set lword rword src_lang dst_lang ~description:descr user_id
+let unset_translation (lword, rword, src_lang, dst_lang, user_id) =
+  Db.Translation.unset lword rword src_lang dst_lang user_id
 
-let rpc_update_preferred_lang =
-  server_function Json.t<int32 * string> update_preferred_lang
+let rpc_update_preferred_lang_src =
+  server_function Json.t<int32 * string> update_preferred_lang_src
+
+let rpc_update_preferred_lang_dst =
+  server_function Json.t<int32 * string> update_preferred_lang_dst
 
 let rpc_get_supported_lang =
   server_function Json.t<unit> Db.LangDb.get_supported_languages
 
 let rpc_get_translations =
-  server_function Json.t<int32 * string> get_translations
+  server_function Json.t<int32 * string * string> get_translations
 
 let rpc_set_translation =
-  server_function Json.t<string * string * string * string * int32> set_translation
+  server_function Json.t<string
+                         * string
+                         * string
+                         * string
+                         * string
+                         * int32> set_translation
 
 let rpc_unset_translation =
-  server_function Json.t<string * string * string * int32> unset_translation
+  server_function Json.t<string
+                         * string
+                         * string
+                         * string
+                         * int32> unset_translation
 
 }}
 
 {client{
 
 let update_translations model =
-  let arg = Edit_dictionary_model.(get_user_id model, get_preferred_lang model) in
+  let arg = Edit_dictionary_model.(get_user_id model,
+                                   get_preferred_lang_src model,
+                                   get_preferred_lang_dst model) in
   lwt translations = %rpc_get_translations arg in
   let trans = List.map Edit_dictionary_model.create_translation translations in
   Lwt.return (Edit_dictionary_model.update_translations model trans)
 
-let update_preferred_lang f model preferred_lang =
-  lwt () = %rpc_update_preferred_lang Edit_dictionary_model.(get_user_id model, preferred_lang) in
-  let model = Edit_dictionary_model.update_preferred_lang model preferred_lang in
+let update_preferred_lang f model src_or_dst preferred_lang =
+  lwt () =
+    match src_or_dst with
+    | `Src -> %rpc_update_preferred_lang_src
+                 Edit_dictionary_model.(get_user_id model,
+                                        preferred_lang)
+    | `Dst -> %rpc_update_preferred_lang_dst
+                 Edit_dictionary_model.(get_user_id model,
+                                        preferred_lang)
+  in
+  let model = Edit_dictionary_model.update_preferred_lang model
+                                                          src_or_dst
+                                                          preferred_lang in
   lwt new_model = update_translations model in
   let () = f new_model in
   Lwt.return_unit
 
-let change_preferred_lang f model =
+let change_preferred_lang f model src_or_dst =
   lwt languages = %rpc_get_supported_lang () in
-  let () = f (Edit_dictionary_model.change_preferred_lang model languages) in
+    let () = f (Edit_dictionary_model.change_preferred_lang model
+                                                            src_or_dst
+                                                            languages) in
   Lwt.return_unit
 
-let back_to_init f model =
-  let () = f (Edit_dictionary_model.back_to_init model) in
+let back_to_init f model src_or_dst =
+  let () = f (Edit_dictionary_model.back_to_init model src_or_dst) in
   Lwt.return_unit
 
 let delete_in_translation_in_db model translation =
-  let user_id, preferred_lang = Edit_dictionary_model.(get_user_id model, get_preferred_lang model) in
+  let user_id,
+      preferred_lang_src,
+      preferred_lang_dst = Edit_dictionary_model.(get_user_id model,
+                                                  get_preferred_lang_src model,
+                                                  get_preferred_lang_dst model)
+  in
   let trans = Edit_dictionary_model.(get_translation translation) in
-  lwt () = %rpc_unset_translation Utils.Translation.(trans.source, trans.dest, preferred_lang, user_id) in
-  Lwt.return (Edit_dictionary_model.delete_translation_from_model model translation)
+  lwt () = %rpc_unset_translation Utils.Translation.(trans.source,
+                                                     trans.dest,
+                                                     preferred_lang_src,
+                                                     preferred_lang_dst,
+                                                     user_id) in
+  Lwt.return (Edit_dictionary_model.delete_translation_from_model
+                model translation)
 
 let add_translation f ?oldval:(oval=None) model source dest description =
   lwt model =
@@ -58,12 +100,25 @@ let add_translation f ?oldval:(oval=None) model source dest description =
     | None -> Lwt.return model
     | Some v -> delete_in_translation_in_db model v
   in
-  let user_id, preferred_lang = Edit_dictionary_model.(get_user_id model, get_preferred_lang model) in
+  let user_id,
+      preferred_lang_src,
+      preferred_lang_dst = Edit_dictionary_model.(get_user_id model,
+                                                  get_preferred_lang_src model,
+                                                  get_preferred_lang_dst model)
+  in
   lwt new_model =
-    match_lwt (%rpc_set_translation (source, dest, description, preferred_lang, user_id)) with
+    match_lwt (%rpc_set_translation (source,
+                                     dest,
+                                     description,
+                                     preferred_lang_src,
+                                     preferred_lang_dst,
+                                     user_id)) with
   | true -> let new_translation = Edit_dictionary_model.create_translation
-                                    Utils.Translation.({source; dest; description}) in
-            Lwt.return (Edit_dictionary_model.add_translation model new_translation)
+                                    Utils.Translation.({source;
+                                                        dest;
+                                                        description}) in
+            Lwt.return (Edit_dictionary_model.add_translation model
+                                                              new_translation)
   | false -> Lwt.return (Edit_dictionary_model.set_translation_error model)
   in
   let () = f new_model in
@@ -80,12 +135,14 @@ let clear_error f model =
   Lwt.return_unit
 
 let edit_translation f model translation =
-  let new_model = Edit_dictionary_model.set_translation_as_edit model translation in
+  let new_model = Edit_dictionary_model.set_translation_as_edit model
+                                                                translation in
   let () = f new_model in
   Lwt.return_unit
 
 let cancel_edit_translation f model translation =
-  let new_model = Edit_dictionary_model.set_translation_as_read model translation in
+  let new_model = Edit_dictionary_model.set_translation_as_read model
+                                                                translation in
   let () = f new_model in
   Lwt.return_unit
 

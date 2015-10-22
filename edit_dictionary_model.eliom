@@ -2,7 +2,8 @@
   type preferred_lang_state = [`Unit | `Change_preferred_lang of string list]
   type add_translation_state = [`Ok | `Duplicated_translation]
   type global_state = [`Learn | `Play]
-  type state = {preferred_lang_state: preferred_lang_state;
+  type state = {src_preferred_lang_state: preferred_lang_state;
+                dst_preferred_lang_state: preferred_lang_state;
                 add_translation_state: add_translation_state }
 
 
@@ -24,12 +25,14 @@
   type rf = ?step:React.step -> t -> unit
   type rp = rs * rf
 
-  let create current_user = {current_user; state={preferred_lang_state=`Unit;
+  let create current_user = {current_user; state={src_preferred_lang_state=`Unit;
+                                                  dst_preferred_lang_state=`Unit;
                                                   add_translation_state=`Ok};
                              translations=[]; global_state=`Learn}
 
   let get_user_id t = Current_user.(get_user_id t.current_user)
-  let get_preferred_lang t = Current_user.(get_preferred_lang t.current_user)
+  let get_preferred_lang_src t = Current_user.(get_preferred_lang_src t.current_user)
+  let get_preferred_lang_dst t = Current_user.(get_preferred_lang_dst t.current_user)
 
   let get_translations t =
     List.sort (fun x y ->
@@ -39,18 +42,32 @@
 
   let get_translation translation = Translation.(translation.value)
 
-  let update_preferred_lang t lang =
-    let new_user = {t.current_user with Current_user.preferred_lang = lang} in
-    let new_state = {t.state with preferred_lang_state = `Unit} in
+  let update_preferred_lang t src_or_dst lang =
+    let new_user, new_state =
+      match src_or_dst with
+      | `Src -> {t.current_user with Current_user.preferred_lang_src = lang},
+                {t.state with src_preferred_lang_state = `Unit}
+      | `Dst -> {t.current_user with Current_user.preferred_lang_dst = lang},
+                {t.state with dst_preferred_lang_state = `Unit}
+    in
     {t with current_user = new_user;
             state = new_state}
 
-  let change_preferred_lang t newlanguages =
-    let new_state = {t.state with preferred_lang_state = `Change_preferred_lang newlanguages} in
+  let change_preferred_lang t src_or_dst newlanguages =
+    let new_lang_state = `Change_preferred_lang newlanguages in
+    let new_state =
+      match src_or_dst with
+      | `Src -> {t.state with src_preferred_lang_state = new_lang_state}
+      | `Dst -> {t.state with dst_preferred_lang_state = new_lang_state}
+    in
     {t with state = new_state}
 
-  let back_to_init t =
-    let new_state = {t.state with preferred_lang_state = `Unit} in
+  let back_to_init t src_or_dst =
+    let new_state =
+      match src_or_dst with
+      | `Src -> {t.state with src_preferred_lang_state = `Unit}
+      | `Dst -> {t.state with dst_preferred_lang_state = `Unit}
+    in
     {t with state = new_state}
 
   let update_translations t translations =
@@ -58,7 +75,6 @@
 
   let set_translation_as_read t translation =
     {translation with Translation.state = `Read}
-
 
   let create_translation translation =
     Translation.({state=`Read; value=translation})
