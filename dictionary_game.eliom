@@ -52,6 +52,18 @@ module Dictionary = struct
       | Some x -> ps "%s: %s" current_q_str x
 
   let question_answer q = Pervasives.snd q
+  let nber_additional_answers = 4
+  let question_additional_answers t question =
+    let number_of_other_questions = min ((List.length t.questions) - 1)
+                                        nber_additional_answers in
+    let other_questions = List.filter
+                            (fun x -> x <> question)
+                            t.questions in
+    let chosen = Utils.(first_n
+                          (reorder_list other_questions)
+                          number_of_other_questions) in
+    List.map Pervasives.snd chosen
+
   let is_there_help = false
   type help_t = unit
   let get_help _ _ = (), []

@@ -103,7 +103,7 @@ module type GameConf =
     val generate_question: t -> question
     (* the second argument of type string option
        is the optional answer of the question, already
-       computed by by question_answer.
+       computed by question_answer.
        This is used to compute either:
        - the question, or
        - the answer that will be displayed
@@ -111,6 +111,7 @@ module type GameConf =
     *)
     val question_to_string: question -> string option -> string
     val question_answer: question -> string
+    val question_additional_answers: t -> question -> string list
     type help_t
     val get_help: (unit -> unit) ->
                   question -> help_t * Dom_html.element Js.t list
@@ -141,15 +142,21 @@ module HardAnswers = struct
     type t = {
         a_input: Dom_html.inputElement Js.t;
         a_button: Dom_html.buttonElement Js.t;
+        mutable setup_done: bool;
       }
 
-    let create () =
-      let a_input = To_dom.of_input (input ~a:[a_input_type `Text] ()) in
-      let a_button = To_dom.of_button (create_button `Danger "Answer") in
-      {a_input; a_button}
-
     let focus_on_answer t = t.a_input ## focus()
-    let reset_input t = Utils.write_in_input t.a_input ""
+
+    let create () =
+      let a_input = To_dom.of_input (input ~a:[a_input_type `Text;
+                                               a_autofocus `Autofocus] ()) in
+      let a_button = To_dom.of_button (create_button `Danger "Answer") in
+      let setup_done = false in
+      {a_input; a_button; setup_done}
+
+    let reset_input t =
+      Utils.write_in_input t.a_input ""
+
     let handle_answer_input t f =
       let proposed_answer = Utils.get_input_text t.a_input in
       let () = f proposed_answer in
@@ -170,15 +177,56 @@ module HardAnswers = struct
                 Of_dom.of_button t.a_button]
 
     let setup t f =
-      let open Lwt_js_events in
-      async (fun () ->
-             keyups t.a_input (on_keyups t f));
-      async (fun () ->
-             clicks t.a_button (on_answer_clicks t f))
+      if not t.setup_done then
+        let open Lwt_js_events in
+        async (fun () ->
+               keyups t.a_input (on_keyups t f));
+        async (fun () ->
+               clicks t.a_button (on_answer_clicks t f));
+        t.setup_done <- true;
 
   end
 
-type answer_handler = [`Normal of  HardAnswers.t
+module NormalAnswers = struct
+    open Html5
+    type t = (Dom_html.buttonElement Js.t list) ref
+
+    let create () = ref []
+
+    let focus_on_answer _ = ()
+    let reset_input _ = ()
+
+    let get_ui_elements t =
+      (* we coerce all elements to Htm5.elt *)
+      List.map To_dom.of_element
+               (List.map
+                  Of_dom.of_button
+                  !t)
+
+    let on_button_click f x _ _ =
+      let () = f x in
+      Lwt.return_unit
+
+    let setup t f answer additional_answers =
+      let buttons = List.map
+                      (fun x -> x,
+                                (To_dom.of_button
+                                   (create_button `Primary x)))
+                      (Utils.reorder_list (answer :: additional_answers))
+      in
+      let open Lwt_js_events in
+      let () =
+        List.iter
+          (fun (x, b) ->
+           async (fun () ->
+                  clicks b (on_button_click f x)))
+          buttons
+      in
+      t := List.map Pervasives.snd buttons
+
+  end
+
+type answer_handler = [`Normal of NormalAnswers.t
                       | `Hard of HardAnswers.t]
 
 
@@ -291,15 +339,18 @@ struct
     | Some x ->
        match x with
        | `Hard ah -> HardAnswers.focus_on_answer ah
-       | `Normal ah -> HardAnswers.focus_on_answer ah
+       | `Normal ah -> NormalAnswers.focus_on_answer ah
 
   let reset_answer t =
-    match t.answer_handler with
-    | None -> ()
-    | Some x ->
-       match x with
-       | `Hard ah -> HardAnswers.reset_input ah
-       | `Normal ah -> HardAnswers.reset_input ah
+    let () =
+      match t.answer_handler with
+      | None -> ()
+      | Some x ->
+         match x with
+         | `Hard ah -> HardAnswers.reset_input ah
+         | `Normal ah -> NormalAnswers.reset_input ah
+    in
+    focus_on_answer t
 
   let make_on_button_click t f ev arg =
     let () = focus_on_answer t in
@@ -375,19 +426,6 @@ struct
                     [To_dom.of_pcdata
                        (Html5.pcdata (current_question_to_str t))]
 
-  let next_game t =
-    let () =
-      match t.current_game with
-        | None -> ()
-        | Some g -> begin
-          let () = focus_on_answer t in
-          let () = t.current_question <- Some (GC.generate_question g) in
-          update_help_if_necessary t
-        end
-    in
-    let () = reset_answer t in
-    display_current_mode t
-
   let display_result t score =
     let () = replaceChildren (To_dom.of_div t.result_div)
                              [To_dom.of_pcdata
@@ -402,30 +440,77 @@ struct
           ()
         end
 
-  let handle_answer t proposed_answer =
-    let (question, score) =
-      match (t.current_question, t.current_score) with
-        | (Some x, Some y) -> (x, y)
-        | _ -> assert(false)
-    in
-    let answer = GC.question_answer question in
-    let current_message =
-      if proposed_answer = answer then (
-        Score.good_answer score; GC.correct_answer_message)
-      else begin
-        let () = Score.bad_answer score in
-        GC.bad_answer_prefix ^ (current_question_to_str t ~answer:(Some answer))
-      end
-    in
-    let output_message = [current_message] in
-    let () = replaceChildren (To_dom.of_div t.answer_output)
-                             (List.map (fun x ->
-                                        To_dom.of_pcdata
-                                          (Html5.pcdata x))
-                                       output_message) in
-    if is_finished t then display_result t score
-    else next_game t
+  (* XXX the need for mutually reccursive functions
+     might disappear using react *)
+  let rec
+      next_game t =
+        let () =
+          match t.current_game with
+            | None -> ()
+            | Some g -> begin
+              let current_question = GC.generate_question g in
+              let additional_answers = GC.question_additional_answers
+                                         g
+                                         current_question in
+              let () =
+                t.current_question <- Some current_question in
+              let answer = GC.question_answer
+                                     current_question in
+              let () = setup_question t
+                                      answer
+                                      additional_answers
+              in
+              update_help_if_necessary t
+            end
+        in
+        let () = reset_answer t in
+        display_current_mode t
+    and
+      setup_question t answer additional_answers =
+        match t.answer_handler with
+        | None -> ()
+        | Some aht ->
+           let ui_elements =
+             match aht with
+             | `Hard ah -> HardAnswers.(
+                 let () = setup ah (handle_answer t) in
+                 get_ui_elements ah)
+             | `Normal ah ->
+                NormalAnswers.(
+                 let () = setup ah (handle_answer t)
+                                answer
+                                additional_answers
+                 in
+                 get_ui_elements ah)
+           in
+           replaceChildren (To_dom.of_div t.answer_board)
+                           ui_elements
 
+    and
+      handle_answer t proposed_answer =
+        let (question, score) =
+          match (t.current_question, t.current_score) with
+            | (Some x, Some y) -> (x, y)
+            | _ -> assert(false)
+        in
+        let answer = GC.question_answer question in
+        let current_message =
+          if proposed_answer = answer then (
+            Score.good_answer score; GC.correct_answer_message)
+          else begin
+            let () = Score.bad_answer score in
+            GC.bad_answer_prefix ^
+              (current_question_to_str t ~answer:(Some answer))
+          end
+        in
+        let output_message = [current_message] in
+        let () = replaceChildren (To_dom.of_div t.answer_output)
+                                 (List.map (fun x ->
+                                            To_dom.of_pcdata
+                                              (Html5.pcdata x))
+                                           output_message) in
+        if is_finished t then display_result t score
+        else next_game t
 
   let start_game t =
     let () =
@@ -436,16 +521,11 @@ struct
     let nb_questions, level, others = get_input_params t.game_params in
     let () = t.current_game <- Some (GC.create t.create_arg others) in
     let () = t.current_score <- Some (Score.create nb_questions) in
-    let answer_handler, ui_elements =
+    let answer_handler =
       match level with
-      | `Hard
-      | `Normal -> HardAnswers.(
-          let res = create () in
-          let () = setup res (handle_answer t) in
-          `Hard res, get_ui_elements res)
+      | `Hard -> `Hard (HardAnswers.create ())
+      | `Normal -> `Normal (NormalAnswers.create ())
     in
-    let () = replaceChildren (To_dom.of_div t.answer_board)
-                             ui_elements in
     t.answer_handler <- Some answer_handler
 
 

@@ -321,7 +321,7 @@ module Dictionary = struct
       | `Verb v -> Verb.to_russian v
       | `Time t -> Time.to_russian t
       | `Numbers n -> Numbers.to_russian n
-
+  let question_additional_answers _ _ = []
   type help_t = unit
   let get_help _ _ = (), []
   let stop_help () = ()

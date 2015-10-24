@@ -178,6 +178,8 @@ module IndicativePastPresentShared = struct
   let question_answer current_question =
     let mode, _, time = current_question in
     Tables.conjugate mode time
+  let question_additional_answers _ _ = []
+
 end
 
 }}

@@ -124,4 +124,27 @@ let create_bootstrap_head () =
     let str_to_opt str = Tyxml_js.Html5.(option (pcdata str)) in
     Tyxml_js.Html5.select (List.map str_to_opt elements)
 
+  let reorder_list l =
+    let rec _reoder_list remaining res =
+      match remaining with
+      | [] -> res
+      | _ ->
+         let idx = Random.int (List.length remaining) in
+         let element = List.nth remaining idx in
+         _reoder_list (List.filter
+                         (fun x -> x <> element)
+                         remaining)
+                      (element :: res)
+    in
+    _reoder_list l []
+
+  let first_n l nb_element =
+    let nb_element = Pervasives.min (List.length l) nb_element in
+    let rec _first_n l nb_element res =
+      match nb_element with
+      | 0 -> List.rev res
+      | _ -> _first_n (List.tl l) (nb_element - 1) ((List.hd l) :: res)
+    in
+    _first_n l nb_element []
+
 }}
