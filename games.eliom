@@ -165,7 +165,8 @@ struct
     other_inputs: other_inputs;
   }
 
-  let create_inputs nb_questions_input start_button ok_button restart_button other_inputs = {
+  let create_inputs nb_questions_input start_button
+                    ok_button restart_button other_inputs = {
     nb_questions_input = nb_questions_input;
     start_game = start_button;
     answer = ok_button;
@@ -174,10 +175,13 @@ struct
   }
 
   let get_input_params inputs =
-    let nb_questions = int_of_string (Utils.get_input_text inputs.nb_questions_input) in
-    nb_questions, Array.map (fun x -> Utils.get_input_text x) inputs.other_inputs
+    let nb_questions = int_of_string (Utils.get_input_text
+                                        inputs.nb_questions_input) in
+    nb_questions, Array.map (fun x ->
+                             Utils.get_input_text x) inputs.other_inputs
 
-  let setup_inputs t on_start_game_clicks on_answer_clicks on_restart_game_clicks =
+  let setup_inputs t on_start_game_clicks on_answer_clicks
+                   on_restart_game_clicks =
     let open Lwt_js_events in
     async (fun () ->
       clicks t.start_game on_start_game_clicks);
@@ -201,7 +205,8 @@ struct
       | Some h ->
          Some {help_div = To_dom.of_div h.GameHtmlElements.help_div;
                help_button = To_dom.of_button h.GameHtmlElements.help_button;
-               out_of_help_button = To_dom.of_button h.GameHtmlElements.out_of_help_button;
+               out_of_help_button = To_dom.of_button
+                                      h.GameHtmlElements.out_of_help_button;
                help_is_asked = false;
                helper = Utils.must (GC.get_help refocus);
                curr_helper = None}
@@ -251,7 +256,8 @@ struct
       | Some h ->
         let () = h.help_is_asked <- true in
         let () = reset_curr_helper h in
-        let curr_helper, elements = h.helper.get_help (Utils.must t.current_question) in
+        let curr_helper, elements = h.helper.get_help
+                                      (Utils.must t.current_question) in
         let () = h.curr_helper <- Some curr_helper in
         replaceChildren h.help_div elements
 
@@ -290,7 +296,9 @@ struct
         GC.question_to_string current_question a
 
   let display_current_mode t =
-    replaceChildren (To_dom.of_div t.question_board) [To_dom.of_pcdata (Html5.pcdata (current_question_to_str t))]
+    replaceChildren (To_dom.of_div t.question_board)
+                    [To_dom.of_pcdata
+                       (Html5.pcdata (current_question_to_str t))]
 
   let next_game t =
     let () =
@@ -317,7 +325,9 @@ struct
     t.current_score <- Some (Score.create nb_questions)
 
   let display_result t score =
-    let () = replaceChildren (To_dom.of_div t.result_div) [To_dom.of_pcdata (Html5.pcdata (Score.to_string score))] in
+    let () = replaceChildren (To_dom.of_div t.result_div)
+                             [To_dom.of_pcdata
+                                (Html5.pcdata (Score.to_string score))] in
     let () = Utils.hidde_element t.answer_input in
     let () = Utils.hidde_element t.game_params.answer in
     let () = resetChildren (To_dom.of_div t.question_board) in
@@ -337,14 +347,19 @@ struct
     let answer = GC.question_answer question in
     let message = Utils.get_input_text t.answer_input in
     let current_message =
-      if message = answer then (Score.good_answer score; GC.correct_answer_message)
+      if message = answer then (
+        Score.good_answer score; GC.correct_answer_message)
       else begin
         let () = Score.bad_answer score in
         GC.bad_answer_prefix ^ (current_question_to_str t ~answer:(Some answer))
       end
     in
     let output_message = [current_message] in
-    let () = replaceChildren (To_dom.of_div t.answer_output) (List.map (fun x -> To_dom.of_pcdata (Html5.pcdata x)) output_message) in
+    let () = replaceChildren (To_dom.of_div t.answer_output)
+                             (List.map (fun x ->
+                                        To_dom.of_pcdata
+                                          (Html5.pcdata x))
+                                       output_message) in
     if is_finished t then display_result t score
     else next_game t
 
@@ -381,7 +396,8 @@ struct
     let () = Utils.show_element t.start_game_div in
     Lwt.return_unit
 
-  let create question answer_input answer_output game_params start_game_div game_ongoing_div result_div h arg =
+  let create question answer_input answer_output game_params
+             start_game_div game_ongoing_div result_div h arg =
     let () = Random.self_init () in
     let answer_input = To_dom.of_input answer_input in
     let res =
@@ -418,19 +434,24 @@ struct
     in
     async (fun () ->
       keyups t.answer_input (on_keyups t));
-    setup_inputs t.game_params (on_start_game_clicks t) click_on_answer_handler (on_restart_game_clicks t);
+    setup_inputs t.game_params
+                 (on_start_game_clicks t)
+                 click_on_answer_handler
+                 (on_restart_game_clicks t);
     setup_help t
 
   let game_mode_inputs () =
     let its i_arg = Printf.sprintf "%d" i_arg in
-    let select_args = (its GC.default_num_of_questions) :: (List.map its GC.other_number_of_questions) in
+    let select_args = (its GC.default_num_of_questions) ::
+                        (List.map its GC.other_number_of_questions) in
     let n_inputs =
       "How many questions would you like in that game ?",
       Utils.create_select select_args
     in
     let others =
       Array.map (fun x ->
-                 let arguments = x.default_argument :: x.non_default_arguments in
+                 let arguments = x.default_argument ::
+                                   x.non_default_arguments in
                  x.argument_description,
                  Utils.create_select arguments)
                 GC.arguments
@@ -447,14 +468,19 @@ struct
     let other_inputs = List.map Pervasives.snd others in
     let start_game_button = create_button `Primary "Start" in
     let start_game_div = div [div [pcdata (GC.description ^ ":")];
-                              ul (List.map (fun (x, input) -> li [pcdata x; input])
+                              ul (List.map
+                                    (fun (x, input) -> li [pcdata x; input])
                                            (nquestions :: others));
                               div [start_game_button]] in
     let answer_button = create_button `Danger "Answer" in
     let restart_game_button = create_button `Success "Restart" in
     let answer_output = div [] in
     let result_div = div [] in
-    let game_ongoing_l = [question_board; answer_input; answer_output; result_div; answer_button; restart_game_button] in
+    let game_ongoing_l = [question_board; answer_input;
+                          answer_output;
+                          result_div;
+                          answer_button;
+                          restart_game_button] in
     let open GameHtmlElements in
     let create_help d b ob = {help_div = d;
                               help_button = b;
@@ -466,11 +492,14 @@ struct
         | true ->
           let help_div = div ~a:[a_class ["centered"]] [] in
           let help_button = create_button `Primary "Help" in
-          let out_of_help_button = create_button ~hidden:true `Primary "I don't need help anymore" in
+          let out_of_help_button = create_button ~hidden:true
+                                                 `Primary
+                                                 "I don't need help anymore" in
           (game_ongoing_l @ [help_button; out_of_help_button; help_div],
            Some (create_help help_div help_button out_of_help_button))
     in
-    let game_ongoing_div = div ~a:[a_class ["hidden"; "centered"]] game_ongoing_l in
+    let game_ongoing_div = div ~a:[a_class ["hidden";
+                                            "centered"]] game_ongoing_l in
 
     {question_board = question_board;
      answer_input = answer_input;
@@ -505,7 +534,12 @@ struct
                       (To_dom.of_button answer_button)
                       (To_dom.of_button restart_game_button)
                       (Array.map To_dom.of_select other_inputs) in
-    let t = create qb answer_input answer_output game_mode start_game_div game_ongoing_div result_div help_inputs create_arg in
+    let t = create qb answer_input answer_output game_mode
+                   start_game_div
+                   game_ongoing_div
+                   result_div
+                   help_inputs
+                   create_arg in
     setup t
 
   let create_and_setup elt arg =
