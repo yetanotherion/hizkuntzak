@@ -41,6 +41,7 @@ module IndicativePastPresentShared = struct
   }
   let description = "The first game consists at conjugating verbs"
   let default_num_of_questions = 5
+  let supported_levels = [`Hard]
   let other_number_of_questions = [1; 10; 25; 50; 100]
   let correct_answer_message = "Oso ondo !"
   let bad_answer_prefix = "Zuzenketa: "

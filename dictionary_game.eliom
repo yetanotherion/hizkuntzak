@@ -8,6 +8,7 @@ module Dictionary = struct
   let correct_answer_message = "Oso ondo !"
   let bad_answer_prefix = "Erantzun zuzena: "
   let arguments = Array.of_list []
+  let supported_levels = [`Normal; `Hard]
   type question = string * string
   type create_arg = question list
 

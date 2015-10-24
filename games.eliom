@@ -13,6 +13,21 @@
 (*  implied.  See the License for the specific language governing         *)
 (*  permissions and limitations under the License.                        *)
 (**************************************************************************)
+{shared{
+type level = [`Hard | `Normal]
+
+let level_to_str x =
+  match x with
+    | `Hard -> "hard"
+    | `Normal -> "normal"
+
+let str_to_level x =
+  match x with
+  | "hard" -> `Hard
+  | "normal" -> `Normal
+  | _ -> assert(false)
+}}
+
 {client{
 open Eliom_lib
 open Eliom_content
@@ -63,6 +78,7 @@ module GameHtmlElements = struct
     game_ongoing_div: ([> Html5_types.div ] as 'div) Html5.elt;
     result_div: ([> Html5_types.div ] as 'div) Html5.elt;
     nquestions_input: ([> Html5_types.select ] as 'select) Html5.elt;
+    level_input: ([> Html5_types.select ] as 'select) Html5.elt;
     start_game_button: ([> Html5_types.button ] as 'button) Html5.elt;
     answer_button: ([> Html5_types.button ] as 'button) Html5.elt;
     restart_game_button: ([> Html5_types.button ] as 'button) Html5.elt;
@@ -81,6 +97,7 @@ module type GameConf =
     val correct_answer_message: string
     val bad_answer_prefix: string
     val arguments: arguments
+    val supported_levels: level list
     (* the type of the first argument to create t *)
     type create_arg
     (* the second argument of type string array
@@ -159,15 +176,17 @@ struct
 
   type inputs = {
     nb_questions_input: Dom_html.selectElement Js.t;
+    level_input: Dom_html.selectElement Js.t;
     start_game: Dom_html.buttonElement Js.t;
     answer: Dom_html.buttonElement Js.t;
     restart_game: Dom_html.buttonElement Js.t;
     other_inputs: other_inputs;
   }
 
-  let create_inputs nb_questions_input start_button
+  let create_inputs nb_questions_input level_input start_button
                     ok_button restart_button other_inputs = {
     nb_questions_input = nb_questions_input;
+    level_input = level_input;
     start_game = start_button;
     answer = ok_button;
     restart_game = restart_button;
@@ -177,8 +196,12 @@ struct
   let get_input_params inputs =
     let nb_questions = int_of_string (Utils.get_input_text
                                         inputs.nb_questions_input) in
-    nb_questions, Array.map (fun x ->
-                             Utils.get_input_text x) inputs.other_inputs
+    let level = (Utils.get_input_text
+                   inputs.level_input) in
+    nb_questions,
+    (str_to_level level),
+    Array.map (fun x ->
+               Utils.get_input_text x) inputs.other_inputs
 
   let setup_inputs t on_start_game_clicks on_answer_clicks
                    on_restart_game_clicks =
@@ -220,6 +243,7 @@ struct
     mutable current_game: GC.t option;
     mutable current_question: GC.question option;
     mutable current_score: Score.t option;
+    mutable current_level: level option;
     start_game_div: Dom_html.divElement Js.t;
     game_ongoing_div: Dom_html.divElement Js.t;
     help_inputs: help_inputs option;
@@ -320,9 +344,10 @@ struct
         | None -> ()
         | Some h -> Utils.show_element h.help_button
     in
-    let nb_questions, others = get_input_params t.game_params in
+    let nb_questions, level, others = get_input_params t.game_params in
     let () = t.current_game <- Some (GC.create t.create_arg others) in
-    t.current_score <- Some (Score.create nb_questions)
+    let () = t.current_score <- Some (Score.create nb_questions) in
+    t.current_level <- Some level
 
   let display_result t score =
     let () = replaceChildren (To_dom.of_div t.result_div)
@@ -410,6 +435,7 @@ struct
         current_game = None;
         current_question = None;
         current_score = None;
+        current_level = None;
         start_game_div = To_dom.of_div start_game_div;
         game_ongoing_div = To_dom.of_div game_ongoing_div;
         help_inputs = create_help (fun () ->
@@ -448,6 +474,11 @@ struct
       "How many questions would you like in that game ?",
       Utils.create_select select_args
     in
+    let levels = List.map level_to_str GC.supported_levels in
+    let game_level =
+      "On which level would you like to play ?",
+      Utils.create_select levels
+    in
     let others =
       Array.map (fun x ->
                  let arguments = x.default_argument ::
@@ -456,21 +487,22 @@ struct
                  Utils.create_select arguments)
                 GC.arguments
     in
-    n_inputs, Array.to_list others
+    n_inputs, game_level, Array.to_list others
 
   let create_html_elements () =
     let open Tyxml_js in
     let open Html5 in
     let question_board = div [] in
     let answer_input = input ~a:[a_input_type `Text] () in
-    let nquestions, others = game_mode_inputs () in
+    let nquestions, level, others = game_mode_inputs () in
     let nquestions_input = Pervasives.snd nquestions in
+    let level_input = Pervasives.snd level in
     let other_inputs = List.map Pervasives.snd others in
     let start_game_button = create_button `Primary "Start" in
     let start_game_div = div [div [pcdata (GC.description ^ ":")];
                               ul (List.map
                                     (fun (x, input) -> li [pcdata x; input])
-                                           (nquestions :: others));
+                                           (nquestions :: (level :: others)));
                               div [start_game_button]] in
     let answer_button = create_button `Danger "Answer" in
     let restart_game_button = create_button `Success "Restart" in
@@ -508,6 +540,7 @@ struct
      game_ongoing_div = game_ongoing_div;
      result_div = result_div;
      nquestions_input = nquestions_input;
+     level_input = level_input;
      start_game_button = start_game_button;
      answer_button = answer_button;
      restart_game_button = restart_game_button;
@@ -522,6 +555,7 @@ struct
       game_ongoing_div
       result_div
       nquestion_input
+      level_input
       start_game_button
       answer_button
       restart_game_button
@@ -530,6 +564,7 @@ struct
       create_arg =
     let game_mode = create_inputs
                       (To_dom.of_select nquestion_input)
+                      (To_dom.of_select level_input)
                       (To_dom.of_button start_game_button)
                       (To_dom.of_button answer_button)
                       (To_dom.of_button restart_game_button)
@@ -554,6 +589,7 @@ struct
                inputs.game_ongoing_div
                inputs.result_div
                inputs.nquestions_input
+               inputs.level_input
                inputs.start_game_button
                inputs.answer_button
                inputs.restart_game_button

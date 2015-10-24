@@ -244,6 +244,7 @@ end
 module Dictionary = struct
   let description = "Improve your dictionary"
   let default_num_of_questions = 5
+  let supported_levels = [`Hard]
   let other_number_of_questions = [1; 10; 25; 50; 100]
   let correct_answer_message = "хорошо !"
   let bad_answer_prefix = "правильный ответ: "
