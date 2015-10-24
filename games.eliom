@@ -34,8 +34,8 @@ open Eliom_content
 open Tyxml_js
 
 let resetChildren dom_element =
-  Js.Opt.iter (dom_element##firstChild) (fun c -> Dom.removeChild dom_element c)
-
+  List.iter (fun n -> ignore (dom_element##removeChild((n:> Dom.node Js.t))))
+            (Dom.list_of_nodeList (dom_element##childNodes))
 
 let replaceChildren dom_element dom_elements =
   let () = resetChildren dom_element in
@@ -48,11 +48,6 @@ let replaceChildren dom_element dom_elements =
     | [] -> ()
   in
   _replaceChildren dom_element dom_elements
-
-type ('help_t, 'question) _helper = {
-    get_help: 'question -> 'help_t * Dom_html.element Js.t list;
-    stop_help: 'help_t -> unit;
-  }
 
 type game_argument = {
   argument_description: string;
@@ -72,7 +67,7 @@ module GameHtmlElements = struct
 
   type ('div, 'input, 'select, 'button) html_elements = {
     question_board: ([> Html5_types.div] as 'div) Html5.elt;
-    answer_input: ([> Html5_types.input ] as 'input) Html5.elt;
+    answer_board: ([> Html5_types.div] as 'div) Html5.elt;
     answer_output: ([> Html5_types.div ] as 'div) Html5.elt;
     start_game_div: ([> Html5_types.div ] as 'div) Html5.elt;
     game_ongoing_div: ([> Html5_types.div ] as 'div) Html5.elt;
@@ -80,7 +75,6 @@ module GameHtmlElements = struct
     nquestions_input: ([> Html5_types.select ] as 'select) Html5.elt;
     level_input: ([> Html5_types.select ] as 'select) Html5.elt;
     start_game_button: ([> Html5_types.button ] as 'button) Html5.elt;
-    answer_button: ([> Html5_types.button ] as 'button) Html5.elt;
     restart_game_button: ([> Html5_types.button ] as 'button) Html5.elt;
     help_inputs: ('div, 'button) help option;
     other_inputs: ([> Html5_types.select ] as 'select) Html5.elt list;
@@ -118,8 +112,9 @@ module type GameConf =
     val question_to_string: question -> string option -> string
     val question_answer: question -> string
     type help_t
-    type helper = (help_t, question) _helper
-    val get_help: (unit -> unit) -> helper option
+    val get_help: (unit -> unit) ->
+                  question -> help_t * Dom_html.element Js.t list
+    val stop_help: help_t -> unit
     val is_there_help: bool
   end
 
@@ -140,6 +135,52 @@ let create_button ?hidden:(h=false) bc btext =
   in
   Html5.(button
            ~a:[a_class css_class] [pcdata btext])
+
+module HardAnswers = struct
+    open Html5
+    type t = {
+        a_input: Dom_html.inputElement Js.t;
+        a_button: Dom_html.buttonElement Js.t;
+      }
+
+    let create () =
+      let a_input = To_dom.of_input (input ~a:[a_input_type `Text] ()) in
+      let a_button = To_dom.of_button (create_button `Danger "Answer") in
+      {a_input; a_button}
+
+    let focus_on_answer t = t.a_input ## focus()
+    let reset_input t = Utils.write_in_input t.a_input ""
+    let handle_answer_input t f =
+      let proposed_answer = Utils.get_input_text t.a_input in
+      let () = f proposed_answer in
+      Lwt.return_unit
+
+    let on_keyups t f ev _ =
+      if ev##keyCode == 13 then
+        handle_answer_input t f
+      else Lwt.return_unit
+
+    let on_answer_clicks t f _ _ =
+      handle_answer_input t f
+
+    let get_ui_elements t =
+      (* we coerce all elements to Htm5.elt *)
+      List.map To_dom.of_element
+               [Of_dom.of_input t.a_input;
+                Of_dom.of_button t.a_button]
+
+    let setup t f =
+      let open Lwt_js_events in
+      async (fun () ->
+             keyups t.a_input (on_keyups t f));
+      async (fun () ->
+             clicks t.a_button (on_answer_clicks t f))
+
+  end
+
+type answer_handler = [`Normal of  HardAnswers.t
+                      | `Hard of HardAnswers.t]
+
 
 module Score = struct
   type t = {
@@ -178,17 +219,15 @@ struct
     nb_questions_input: Dom_html.selectElement Js.t;
     level_input: Dom_html.selectElement Js.t;
     start_game: Dom_html.buttonElement Js.t;
-    answer: Dom_html.buttonElement Js.t;
     restart_game: Dom_html.buttonElement Js.t;
     other_inputs: other_inputs;
   }
 
   let create_inputs nb_questions_input level_input start_button
-                    ok_button restart_button other_inputs = {
+                    restart_button other_inputs = {
     nb_questions_input = nb_questions_input;
     level_input = level_input;
     start_game = start_button;
-    answer = ok_button;
     restart_game = restart_button;
     other_inputs = other_inputs;
   }
@@ -203,26 +242,23 @@ struct
     Array.map (fun x ->
                Utils.get_input_text x) inputs.other_inputs
 
-  let setup_inputs t on_start_game_clicks on_answer_clicks
+  let setup_inputs t on_start_game_clicks
                    on_restart_game_clicks =
     let open Lwt_js_events in
     async (fun () ->
       clicks t.start_game on_start_game_clicks);
     async (fun () ->
       clicks t.restart_game on_restart_game_clicks);
-    async (fun () ->
-      clicks t.answer on_answer_clicks)
 
   type help_inputs = {
     help_div: Dom_html.divElement Js.t;
     help_button: Dom_html.buttonElement Js.t;
     out_of_help_button: Dom_html.buttonElement Js.t;
-    helper: GC.helper;
     mutable help_is_asked: bool;
     mutable curr_helper: GC.help_t option;
   }
 
-  let create_help refocus ho =
+  let create_help ho =
     match ho with
       | None -> None
       | Some h ->
@@ -231,35 +267,49 @@ struct
                out_of_help_button = To_dom.of_button
                                       h.GameHtmlElements.out_of_help_button;
                help_is_asked = false;
-               helper = Utils.must (GC.get_help refocus);
                curr_helper = None}
 
   type 'a t = {
     question_board: 'a Html5.elt;
-    answer_input: Dom_html.inputElement Js.t;
+    answer_board: 'a Html5.elt;
     answer_output: 'a Html5.elt;
     result_div: 'a Html5.elt;
     game_params: inputs;
     mutable current_game: GC.t option;
     mutable current_question: GC.question option;
     mutable current_score: Score.t option;
-    mutable current_level: level option;
+    mutable answer_handler: answer_handler option;
     start_game_div: Dom_html.divElement Js.t;
     game_ongoing_div: Dom_html.divElement Js.t;
     help_inputs: help_inputs option;
     create_arg: GC.create_arg;
   }
 
-  let focus_on_answer answer_input = answer_input##focus()
+  let focus_on_answer t =
+    match t.answer_handler with
+    | None -> ()
+    | Some x ->
+       match x with
+       | `Hard ah -> HardAnswers.focus_on_answer ah
+       | `Normal ah -> HardAnswers.focus_on_answer ah
+
+  let reset_answer t =
+    match t.answer_handler with
+    | None -> ()
+    | Some x ->
+       match x with
+       | `Hard ah -> HardAnswers.reset_input ah
+       | `Normal ah -> HardAnswers.reset_input ah
 
   let make_on_button_click t f ev arg =
-    let () = focus_on_answer t.answer_input in
+    let () = focus_on_answer t in
     f ev arg
+
 
   let reset_curr_helper h =
     let () = match h.curr_helper with
       | None -> ()
-      | Some curr_h -> h.helper.stop_help curr_h
+      | Some curr_h -> GC.stop_help curr_h
     in
     h.curr_helper <- None
 
@@ -280,7 +330,8 @@ struct
       | Some h ->
         let () = h.help_is_asked <- true in
         let () = reset_curr_helper h in
-        let curr_helper, elements = h.helper.get_help
+        let curr_helper, elements = GC.get_help
+                                      (fun () -> focus_on_answer  t)
                                       (Utils.must t.current_question) in
         let () = h.curr_helper <- Some curr_helper in
         replaceChildren h.help_div elements
@@ -329,50 +380,37 @@ struct
       match t.current_game with
         | None -> ()
         | Some g -> begin
-          let () = focus_on_answer t.answer_input in
+          let () = focus_on_answer t in
           let () = t.current_question <- Some (GC.generate_question g) in
           update_help_if_necessary t
         end
     in
-    let () = Utils.write_in_input t.answer_input "" in
+    let () = reset_answer t in
     display_current_mode t
-
-  let start_game t =
-    let () = Utils.show_element t.game_params.answer in
-    let () =
-      match t.help_inputs with
-        | None -> ()
-        | Some h -> Utils.show_element h.help_button
-    in
-    let nb_questions, level, others = get_input_params t.game_params in
-    let () = t.current_game <- Some (GC.create t.create_arg others) in
-    let () = t.current_score <- Some (Score.create nb_questions) in
-    t.current_level <- Some level
 
   let display_result t score =
     let () = replaceChildren (To_dom.of_div t.result_div)
                              [To_dom.of_pcdata
                                 (Html5.pcdata (Score.to_string score))] in
-    let () = Utils.hidde_element t.answer_input in
-    let () = Utils.hidde_element t.game_params.answer in
     let () = resetChildren (To_dom.of_div t.question_board) in
+    let () = resetChildren (To_dom.of_div t.answer_board) in
     match t.help_inputs with
       | None -> ()
       | Some h -> begin
-        let () = do_hide_helper h in
-        let () = Utils.hidde_element h.help_button in
-        ()
-      end
-  let handle_answer t =
+          let () = do_hide_helper h in
+          let () = Utils.hidde_element h.help_button in
+          ()
+        end
+
+  let handle_answer t proposed_answer =
     let (question, score) =
       match (t.current_question, t.current_score) with
         | (Some x, Some y) -> (x, y)
         | _ -> assert(false)
     in
     let answer = GC.question_answer question in
-    let message = Utils.get_input_text t.answer_input in
     let current_message =
-      if message = answer then (
+      if proposed_answer = answer then (
         Score.good_answer score; GC.correct_answer_message)
       else begin
         let () = Score.bad_answer score in
@@ -388,32 +426,42 @@ struct
     if is_finished t then display_result t score
     else next_game t
 
-  let handle_answer_input_changes t =
-    let message = Utils.get_input_text t.answer_input in
-      if message = "" then ()
-      else
-        if is_finished t then ()
-        else begin
-          match t.current_game with
-            | None -> ()
-            | Some game -> handle_answer t
-        end
+
+  let start_game t =
+    let () =
+      match t.help_inputs with
+        | None -> ()
+        | Some h -> Utils.show_element h.help_button
+    in
+    let nb_questions, level, others = get_input_params t.game_params in
+    let () = t.current_game <- Some (GC.create t.create_arg others) in
+    let () = t.current_score <- Some (Score.create nb_questions) in
+    let answer_handler, ui_elements =
+      match level with
+      | `Hard
+      | `Normal -> HardAnswers.(
+          let res = create () in
+          let () = setup res (handle_answer t) in
+          `Hard res, get_ui_elements res)
+    in
+    let () = replaceChildren (To_dom.of_div t.answer_board)
+                             ui_elements in
+    t.answer_handler <- Some answer_handler
+
 
   let on_start_game_clicks t _ _ =
     let () = start_game t in
     let () = next_game t in
     let () = Utils.hidde_element t.start_game_div in
     let () = Utils.show_element t.game_ongoing_div in
-    let () = Utils.show_element t.answer_input in
-    let () = focus_on_answer t.answer_input in
     let () = resetChildren (To_dom.of_div t.result_div) in
     Lwt.return_unit
 
   let reset_game t =
     let () = t.current_game <- None in
     let () = resetChildren (To_dom.of_div t.answer_output) in
-    let () = Utils.write_in_input t.answer_input "" in
-    resetChildren (To_dom.of_div t.question_board)
+    let () = resetChildren (To_dom.of_div t.question_board) in
+    resetChildren (To_dom.of_div t.answer_board)
 
   let on_restart_game_clicks t _ _ =
     let () = reset_game t in
@@ -421,48 +469,32 @@ struct
     let () = Utils.show_element t.start_game_div in
     Lwt.return_unit
 
-  let create question answer_input answer_output game_params
+  let create question answer_board answer_output game_params
              start_game_div game_ongoing_div result_div h arg =
     let () = Random.self_init () in
-    let answer_input = To_dom.of_input answer_input in
     let res =
       {
         question_board = question;
-        answer_input = answer_input;
+        answer_board = answer_board;
         answer_output = answer_output;
         result_div = result_div;
         game_params = game_params;
         current_game = None;
         current_question = None;
         current_score = None;
-        current_level = None;
+        answer_handler = None;
         start_game_div = To_dom.of_div start_game_div;
         game_ongoing_div = To_dom.of_div game_ongoing_div;
-        help_inputs = create_help (fun () ->
-                                   focus_on_answer answer_input) h;
+        help_inputs = create_help h;
         create_arg = arg;
       } in
     res
 
-  let on_keyups t ev _ =
-    let () =
-      if ev##keyCode == 13 then
-        handle_answer_input_changes t
-      else ()
-    in
-    Lwt.return_unit
 
   let setup t =
     let open Lwt_js_events in
-    let click_on_answer_handler _ _ =
-      let () = handle_answer_input_changes t in
-      Lwt.return_unit
-    in
-    async (fun () ->
-      keyups t.answer_input (on_keyups t));
     setup_inputs t.game_params
                  (on_start_game_clicks t)
-                 click_on_answer_handler
                  (on_restart_game_clicks t);
     setup_help t
 
@@ -493,7 +525,7 @@ struct
     let open Tyxml_js in
     let open Html5 in
     let question_board = div [] in
-    let answer_input = input ~a:[a_input_type `Text] () in
+    let answer_board = div [] in
     let nquestions, level, others = game_mode_inputs () in
     let nquestions_input = Pervasives.snd nquestions in
     let level_input = Pervasives.snd level in
@@ -504,14 +536,13 @@ struct
                                     (fun (x, input) -> li [pcdata x; input])
                                            (nquestions :: (level :: others)));
                               div [start_game_button]] in
-    let answer_button = create_button `Danger "Answer" in
     let restart_game_button = create_button `Success "Restart" in
     let answer_output = div [] in
     let result_div = div [] in
-    let game_ongoing_l = [question_board; answer_input;
+    let game_ongoing_l = [question_board;
+                          answer_board;
                           answer_output;
                           result_div;
-                          answer_button;
                           restart_game_button] in
     let open GameHtmlElements in
     let create_help d b ob = {help_div = d;
@@ -534,7 +565,7 @@ struct
                                             "centered"]] game_ongoing_l in
 
     {question_board = question_board;
-     answer_input = answer_input;
+     answer_board = answer_board;
      answer_output = answer_output;
      start_game_div = start_game_div;
      game_ongoing_div = game_ongoing_div;
@@ -542,14 +573,13 @@ struct
      nquestions_input = nquestions_input;
      level_input = level_input;
      start_game_button = start_game_button;
-     answer_button = answer_button;
      restart_game_button = restart_game_button;
      help_inputs = h;
      other_inputs = other_inputs}
 
   let _create_and_setup
       qb
-      answer_input
+      answer_board
       answer_output
       start_game_div
       game_ongoing_div
@@ -557,7 +587,6 @@ struct
       nquestion_input
       level_input
       start_game_button
-      answer_button
       restart_game_button
       help_inputs
       other_inputs
@@ -566,10 +595,9 @@ struct
                       (To_dom.of_select nquestion_input)
                       (To_dom.of_select level_input)
                       (To_dom.of_button start_game_button)
-                      (To_dom.of_button answer_button)
                       (To_dom.of_button restart_game_button)
                       (Array.map To_dom.of_select other_inputs) in
-    let t = create qb answer_input answer_output game_mode
+    let t = create qb answer_board answer_output game_mode
                    start_game_div
                    game_ongoing_div
                    result_div
@@ -583,7 +611,7 @@ struct
     let other_inputs = Array.of_list inputs.other_inputs in
     let () = _create_and_setup
                inputs.question_board
-               inputs.answer_input
+               inputs.answer_board
                inputs.answer_output
                inputs.start_game_div
                inputs.game_ongoing_div
@@ -591,7 +619,6 @@ struct
                inputs.nquestions_input
                inputs.level_input
                inputs.start_game_button
-               inputs.answer_button
                inputs.restart_game_button
                inputs.help_inputs
                other_inputs

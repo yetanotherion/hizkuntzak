@@ -323,8 +323,8 @@ module Dictionary = struct
       | `Numbers n -> Numbers.to_russian n
 
   type help_t = unit
-  type helper = (help_t, question) Games._helper
-  let get_help _ = None
+  let get_help _ _ = (), []
+  let stop_help () = ()
 end
 
 module RuDictClient = Games.Make(Dictionary)

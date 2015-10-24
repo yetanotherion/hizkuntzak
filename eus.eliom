@@ -190,7 +190,6 @@ module IndicativePastPresentClient = struct
   module E = Eus_aditzak
   type supported_help = [`NorNorkPresent | `NorNoriPresent]
   type help_t = (supported_help * E.animation) option
-  type helper = (help_t, question) Games._helper
 
   let stop_animation animo =
     match animo with
@@ -244,11 +243,8 @@ module IndicativePastPresentClient = struct
             create_and_setup refocus_after_click create_animation start_animation norNork `NorNorkPresent
       end
 
-  let get_help refocus_after_click =
-    Some {
-      Games.get_help = (get_animation refocus_after_click);
-      Games.stop_help = stop_animation;
-      }
+  let get_help f question = get_animation f question
+  let stop_help h = stop_animation h
   let is_there_help = true
 end
 
