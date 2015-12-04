@@ -29,6 +29,7 @@ let () =
   let eus = Hizkuntzak_app.register_service ["eus"] Eliom_parameter.unit Eus.service in
   let eus_dict = Hizkuntzak_app.register_service ["hiztegia"] Eliom_parameter.unit Dictionary.service in
   let eus_taulak = Hizkuntzak_app.register_service ["eus_taulak"] Eliom_parameter.unit Eus_taulak.service in
+  let ru_genre = Hizkuntzak_app.register_service ["ru_genre"] Eliom_parameter.unit Ru.genre_service in
   let main_service =
     Eliom_service.App.service ~path:[] ~get_params:Eliom_parameter.unit ()
   in
@@ -38,7 +39,9 @@ let () =
     (fun () () ->
       let links = ul
        [li ~a:[a_class ["active"]] [a ~service:eus [pcdata "Games on basque language"] ()];
-        li ~a:[a_class ["active"]] [a ~service:eus_dict [pcdata "Games based on the dictionary you create step by step"] ()]]
+        li ~a:[a_class ["active"]] [a ~service:eus_dict [pcdata "Games based on the dictionary you create step by step"] ()];
+        li ~a:[a_class ["active"]] [a ~service:ru_genre [pcdata "Games to learn the genre of russian words"] ()];
+       ]
       in
       let courses = ul
        [li ~a:[a_class ["active"]] [a ~service:eus_taulak [pcdata "Basque Verb tabulars"] ()]]
