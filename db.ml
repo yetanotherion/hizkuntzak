@@ -160,6 +160,12 @@ module Word = struct
                     row in $table$;
                     row.lang = $int32:language_id$ >>
 
+    let get_words word_ids =
+      <:select< {row.word} |
+                 row in $table$;
+                 word in $word_ids$;
+                 row.id = word.id >>
+
     let get_word_id dbh word language_id =
       match_lwt (Lwt_Query.query dbh <:select< row |
                                                row in $table$;
@@ -401,7 +407,8 @@ module Translation = struct
                                    synonym.l_word = $int32:l_word.Word.id$;
                                    synonym.user_id = $int32:user_id$ >> in
              Lwt.return
-               <:select< {descr = t.description; l_word = lw.word; r_word = rw.word} |
+               <:select< {descr = t.description;
+                          l_word = lw.word; r_word = rw.word} |
                           t in $translations$;
                           lw in $words_in_l_lang$;
                           rw in $words_in_r_lang$;
@@ -413,7 +420,8 @@ module Translation = struct
                                    synonym in $table$;
                                    synonym.user_id = $int32:user_id$ >> in
              Lwt.return
-               <:select< {descr = t.description; l_word = lw.word; r_word = rw.word} |
+               <:select< {descr = t.description;
+                          l_word = lw.word; r_word = rw.word} |
                           t in $translations$;
                           lw in $words_in_l_lang$;
                           rw in $words_in_r_lang$;
@@ -436,4 +444,17 @@ module Translation = struct
       LangDb.full_transaction_block (fun dbh ->
         lwt () = do_delete_all_user_ids_translations dbh user_id in
         User.do_delete dbh user_id)
-  end
+
+    let get_all_nouns_in_language lang =
+      LangDb.full_transaction_block (fun dbh ->
+        lwt words_in_lang = Word.words_in_language lang in
+        let noun = "noun" in
+        let nouns_in_lang = << {id = t.l_word} |
+                                t in $table$;
+                                t.description = $string:noun$;
+                                lw in $words_in_lang$;
+                                t.l_word = lw.id >> in
+        let noun_names = Word.get_words nouns_in_lang in
+        lwt res = Lwt_Query.query dbh noun_names in
+        Lwt.return (List.map (fun x -> x#!word) res))
+end

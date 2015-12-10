@@ -145,13 +145,25 @@ end
 open Eliom_content
 open Html5.D
 
-let get_genres words =
-  let res = List.map (fun x -> (x, Genre.get x)) words in
-  Lwt.return res
+let get_words_and_genres () =
+  lwt words = Db.Translation.get_all_nouns_in_language "ru" in
+  let res = List.map (fun x ->
+                      try Some (x, Genre.get x)
+                      with _ -> None) words in
+  let only_correct = List.filter (fun x ->
+                                  match x with
+                                  | None -> false
+                                  | Some _ -> true) res in
+  let must xo =
+    match xo with
+    | None -> assert(false)
+    | Some x -> x in
+
+  Lwt.return (List.map must only_correct)
 
 let rpc_get_genres =
-  server_function Json.t<string list>
-    (get_genres: string list -> (string * GenreIo.t) list Lwt.t)
+  server_function Json.t<unit>
+    (get_words_and_genres: unit -> (string * GenreIo.t) list Lwt.t)
 
 
 let genre_service unused unused_bis =
@@ -161,8 +173,7 @@ let genre_service unused unused_bis =
       Js.Opt.get (doc##getElementById(Js.string "main"))
         (fun () -> assert false)
     in
-    let words = ["aвaрия"; "aвтобус"; "вaгaж"; "письмо"; "пoле"] in
-    lwt words_and_genres = %rpc_get_genres words in
+    lwt words_and_genres = %rpc_get_genres () in
     let () = GenreGame.create_and_setup parent words_and_genres in
     Lwt.return_unit
   }}
