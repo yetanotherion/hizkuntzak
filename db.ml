@@ -12,13 +12,16 @@ let must x =
 
 
 
-module LangDb: (sig
-                   val full_transaction_block: ((string, bool) Hashtbl.t Lwt_PGOCaml.t -> 'a Lwt.t) -> 'a Lwt.t
-                   val use_db : ((string, bool) Hashtbl.t Lwt_PGOCaml.t -> 'a Lwt.t) -> 'a Lwt.t
-                   val find: string -> int32 Lwt.t
-                   val find_lang: int32 -> string Lwt.t
-                   val get_supported_languages: unit -> string list Lwt.t
-                 end) = struct
+module LangDb:
+(sig
+    val full_transaction_block:
+      ((string, bool) Hashtbl.t Lwt_PGOCaml.t -> 'a Lwt.t) -> 'a Lwt.t
+    val use_db :
+      ((string, bool) Hashtbl.t Lwt_PGOCaml.t -> 'a Lwt.t) -> 'a Lwt.t
+    val find: string -> int32 Lwt.t
+    val find_lang: int32 -> string Lwt.t
+    val get_supported_languages: unit -> string list Lwt.t
+ end) = struct
 
  (* a new language can only be added out of the application.
     The application must be rebooted so that it is taken
@@ -259,13 +262,15 @@ module User = struct
     let do_update_preferred_lang_src dbh id lang =
       lwt preferred_lang = LangDb.find lang in
       Lwt_Query.query dbh
-       <:update< row in $table$ := {preferred_lang_src = $int32:preferred_lang$} |
+       <:update< row in $table$ :=
+                 {preferred_lang_src = $int32:preferred_lang$} |
                  row.id = $int32:id$ >>
 
     let do_update_preferred_lang_dst dbh id lang =
       lwt preferred_lang = LangDb.find lang in
       Lwt_Query.query dbh
-       <:update< row in $table$ := {preferred_lang_dst = $int32:preferred_lang$} |
+       <:update< row in $table$ :=
+                 {preferred_lang_dst = $int32:preferred_lang$} |
                  row.id = $int32:id$ >>
 
     let update_preferred_lang_src id lang =
@@ -282,9 +287,10 @@ module User = struct
                  row.id = $int32:user_id$ >>
 
     let get dbh username =
-      lwt res = Lwt_Query.query dbh <:select< row |
-                                              row in $table$;
-                                              row.username = $string:username$ >> in
+      lwt res = Lwt_Query.query dbh
+                                <:select< row |
+                                          row in $table$;
+                                          row.username = $string:username$ >> in
       match res with
        | [] -> Lwt.return None
        | hd :: _ -> Lwt.return (Some hd)
