@@ -401,18 +401,15 @@ module Translation = struct
                               row.user_id = $int32:user_id$ >> in
         Lwt_Query.query dbh query)
 
-    let get_translations ?l_word:(l_word=None) user_id l_lang r_lang =
+    let get_translations user_id l_lang r_lang =
       LangDb.full_transaction_block (fun dbh ->
         lwt words_in_r_lang = Word.words_in_language r_lang in
         lwt words_in_l_lang = Word.words_in_language l_lang in
-        lwt query = match l_word with
-          | Some word -> begin
-             lwt l_word = Word.get dbh word l_lang in
-             let translations = << synonym |
-                                   synonym in $table$;
-                                   synonym.l_word = $int32:l_word.Word.id$;
-                                   synonym.user_id = $int32:user_id$ >> in
-             Lwt.return
+        let translations = << synonym |
+                              synonym in $table$;
+                              synonym.user_id = $int32:user_id$ >>
+        in
+        let query =
                <:select< {descr = t.description;
                           l_word = lw.word; r_word = rw.word} |
                           t in $translations$;
@@ -420,20 +417,6 @@ module Translation = struct
                           rw in $words_in_r_lang$;
                           t.r_word = rw.id;
                           t.l_word = lw.id >>
-            end
-          | None -> begin
-             let translations = << synonym |
-                                   synonym in $table$;
-                                   synonym.user_id = $int32:user_id$ >> in
-             Lwt.return
-               <:select< {descr = t.description;
-                          l_word = lw.word; r_word = rw.word} |
-                          t in $translations$;
-                          lw in $words_in_l_lang$;
-                          rw in $words_in_r_lang$;
-                          t.r_word = rw.id;
-                          t.l_word = lw.id >>
-            end
         in
         lwt res = Lwt_Query.query dbh query in
         let make_res x = Utils.Translation.({source=x#!l_word;
