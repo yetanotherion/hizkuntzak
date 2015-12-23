@@ -30,7 +30,8 @@
 
   let translation_ui f model translation =
     let open Edit_dictionary_model in
-    let x = Translation.(translation.value) in
+    let elt = Translation.(translation.value) in
+    let x = Utils.Translation.(elt.content) in
     match Translation.(translation.state) with
     | `Read ->
        let button = Utils.create_button `ActionLittle
@@ -131,7 +132,8 @@
                                     (fun () ->
                                      Edit_dictionary_controller.back_to_learning f model) in
    let translations = Edit_dictionary_model.get_translations model in
-   let pairs = List.map (fun x -> let x = Edit_dictionary_model.get_translation x in
+   let pairs = List.map (fun x -> let elt = Edit_dictionary_model.get_translation x in
+                                  let x = Utils.Translation.(elt.content) in
                                   Utils.Translation.(x.source, x.dest)) translations in
    let () = Dictionary_game.Client.create_and_setup (To_dom.of_div div) pairs in
    [button; div]

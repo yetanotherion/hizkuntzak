@@ -40,10 +40,23 @@ let build_raw_select name default others =
   raw_select ~a:[] ~required:(pcdata "") ~name:name h l
 
 module Translation = struct
-    type t = {
+    type data = {
+        id: Int32.t;
         source: string;
         dest: string;
         description: string;
+        owner: Int32.t;
+      }
+
+    type correction_data = {
+        correction: data;
+        corrected_id: Int32.t;
+        validated: bool;
+      }
+
+    type t = {
+        content: data;
+        correction: correction_data option;
       }
   end
 

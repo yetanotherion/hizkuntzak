@@ -338,19 +338,29 @@ end
 
 module Translation = struct
     let id = <:sequence< serial "translations_id" >>
+    (*  We use the correction_link and correction_state attributes
+        to implement that link.
+
+        We don't have enums in macaque, thus, we implement the following
+        mapping
+        constraint correction_link = -1 <-> correction_state=0.
+        correction_link <> -1 ->
+        -original: correction_state == 0
+        -correction: correction_state == 1 -> correction_not_validated
+                     correction_state == 2 -> correction_validated
+        Table = [A=(id=0, correction_link=10, correction_state=0, ...),
+                 ...
+                 ACorrection=(id=10, correction_link=0, correction_state=2, ..),
+                 ...] *)
+
     let table = <:table< translations (
                  id integer NOT NULL DEFAULT(nextval $id$),
                  l_word integer  NOT NULL,
                  r_word integer NOT NULL,
                  user_id integer NOT NULL,
-                 description text NOT NULL) >>
-
-    type t = {
-        id: Int32.t;
-        l_word: Word.t;
-        r_word: Word.t;
-        description: string;
-      }
+                 description text NOT NULL,
+                 correction_state integer NOT NULL,
+                 correction_link integer NOT NULL) >>
 
     let get_id_and_description dbh lword_id rword_id user_id =
       let s = <:select< row |
@@ -362,13 +372,17 @@ module Translation = struct
         | [] -> Lwt.return None
         | hd :: _ -> Lwt.return (Some (hd#!id, hd#!description))
 
-    let insert dbh lword_id rword_id user_id description =
+    let insert ?correction_state:(co_st=Int32.zero)
+               ?link_to_correction:(co_link=(Int32.minus_one))
+               dbh lword_id rword_id user_id description  =
       Lwt_Query.query dbh
        <:insert< $table$ := {description = $string:description$;
                              l_word = $int32:lword_id$;
                              r_word = $int32:rword_id$;
                              user_id = $int32:user_id$;
-                             id = table?id}>>
+                             id = table?id;
+                             correction_state = $int32:co_st$;
+                             correction_link = $int32:co_link$} >>
 
     let update_description dbh synonym_id description =
       Lwt_Query.query dbh
@@ -382,13 +396,17 @@ module Translation = struct
         match_lwt (get_id_and_description dbh l.Word.id r.Word.id user_id) with
           | None -> begin
              lwt () = insert dbh l.Word.id r.Word.id user_id descr in
-             Lwt.return true
+             (* xxx get the id without querying the db again *)
+             match_lwt (get_id_and_description dbh l.Word.id r.Word.id user_id)
+             with
+             | None -> Lwt.return `Nok
+             | Some (id, description) -> Lwt.return (`Ok (id, description))
             end
           | Some (id, description) ->
-             if String.compare description descr == 0 then Lwt.return false
+             if String.compare description descr == 0 then Lwt.return `Nok
              else begin
                lwt () = update_description dbh id descr in
-               Lwt.return true
+               Lwt.return (`Ok (id, descr))
                end)
 
     let unset l_word r_word l_lang r_lang user_id =
@@ -405,24 +423,81 @@ module Translation = struct
       LangDb.full_transaction_block (fun dbh ->
         lwt words_in_r_lang = Word.words_in_language r_lang in
         lwt words_in_l_lang = Word.words_in_language l_lang in
+        (* let's find all the translations asked by the current user *)
         let translations = << synonym |
                               synonym in $table$;
-                              synonym.user_id = $int32:user_id$ >>
-        in
+                              synonym.user_id = $int32:user_id$;
+                              synonym.correction_state = $int32:0l$ >> in
+        (* all the corrections asked by the current user *)
+        let linked = << synonym |
+                        synonym in $table$;
+                        chosen_translation in $translations$;
+                        synonym.correction_state <> $int32:0l$;
+                        synonym.correction_link = chosen_translation.id >> in
+        (* all the corrections asked by another user to the current user *)
+        let corrections = << synonym |
+                             synonym in $table$;
+                             synonym.user_id = $int32:user_id$;
+                             synonym.correction_state <> $int32:0l$ >> in
+        let corrections_links = << synonym |
+                                   synonym in $table$;
+                                   link in $corrections$;
+                                   synonym.id = link.correction_link >> in
+        let overall = << union $translations$ $linked$ >> in
+        let overall = << union $corrections$ $overall$ >> in
+        let overall = << union $corrections_links$ $overall$ >> in
         let query =
                <:select< {descr = t.description;
-                          l_word = lw.word; r_word = rw.word} |
-                          t in $translations$;
+                          l_word = lw.word; r_word = rw.word;
+                          correction_state = t.correction_state;
+                          correction_link = t.correction_link;
+                          id = t.id;
+                          user_id = t.user_id } |
+                          t in $overall$;
                           lw in $words_in_l_lang$;
                           rw in $words_in_r_lang$;
                           t.r_word = rw.id;
                           t.l_word = lw.id >>
         in
         lwt res = Lwt_Query.query dbh query in
-        let make_res x = Utils.Translation.({source=x#!l_word;
-                                             dest=x#!r_word;
-                                             description=x#!descr}) in
-        Lwt.return (List.map make_res res))
+        let open Utils.Translation in
+        let to_data x =
+            {id=x#!id;
+             source=x#!l_word;
+             dest=x#!r_word;
+             description=x#!descr;
+             owner=x#!user_id}
+        in
+        let to_correction x =
+          let () = assert(x#!correction_state = 1l
+                          || x#!correction_state = 2l) in
+          let data = to_data x in
+          {correction=data;
+           corrected_id=x#!correction_link;
+           validated=x#!correction_state = 2l}
+        in
+        let originals, corrections = List.partition
+                                       (fun x ->
+                                        x#!correction_state = Int32.zero)
+                                       res in
+        let originals = List.map to_data originals in
+        let corrections = List.map to_correction corrections in
+        let h = Hashtbl.create (List.length originals) in
+        let () = List.iter (fun x ->
+                            let new_x = {content=x;
+                                         correction=None} in
+                            Hashtbl.add h x.id new_x) originals
+        in
+        let () = List.iter (fun x ->
+                            if Hashtbl.mem h x.corrected_id then
+                              let previous = Hashtbl.find h x.corrected_id in
+                              let new_x = {previous with correction = Some x} in
+                              Hashtbl.replace h x.corrected_id new_x
+                            else ()) corrections
+        in
+        let res = Hashtbl.fold (fun key value res -> value :: res) h [] in
+        let () = Hashtbl.reset h in
+        Lwt.return res)
 
     let do_delete_all_user_ids_translations dbh user_id =
       let query = <:delete< row in $table$ |

@@ -86,8 +86,8 @@ let delete_in_translation_in_db model translation =
                                                   get_preferred_lang_dst model)
   in
   let trans = Edit_dictionary_model.(get_translation translation) in
-  lwt () = %rpc_unset_translation Utils.Translation.(trans.source,
-                                                     trans.dest,
+  lwt () = %rpc_unset_translation Utils.Translation.(trans.content.source,
+                                                     trans.content.dest,
                                                      preferred_lang_src,
                                                      preferred_lang_dst,
                                                      user_id) in
@@ -113,13 +113,20 @@ let add_translation f ?oldval:(oval=None) model source dest description =
                                      preferred_lang_src,
                                      preferred_lang_dst,
                                      user_id)) with
-  | true -> let new_translation = Edit_dictionary_model.create_translation
-                                    Utils.Translation.({source;
-                                                        dest;
-                                                        description}) in
-            Lwt.return (Edit_dictionary_model.add_translation model
-                                                              new_translation)
-  | false -> Lwt.return (Edit_dictionary_model.set_translation_error model)
+    | `Ok (id, description) ->
+       let owner = user_id in
+       let content = Utils.Translation.({id;
+                                         source;
+                                         dest;
+                                         description;
+                                         owner}) in
+       let correction = None in
+       let new_translation = Edit_dictionary_model.create_translation
+                               Utils.Translation.({content;
+                                                   correction}) in
+       Lwt.return (Edit_dictionary_model.add_translation model
+                                                         new_translation)
+  | `Nok -> Lwt.return (Edit_dictionary_model.set_translation_error model)
   in
   let () = f new_model in
   Lwt.return_unit
