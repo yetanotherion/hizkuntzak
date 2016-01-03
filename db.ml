@@ -295,6 +295,15 @@ module User = struct
        | [] -> Lwt.return None
        | hd :: _ -> Lwt.return (Some hd)
 
+    let get_by_id dbh userid =
+      lwt res = Lwt_Query.query dbh
+                                <:select< row |
+                                          row in $table$;
+                                          row.id = $int32:userid$ >> in
+      match res with
+       | [] -> Lwt.return None
+       | hd :: _ -> Lwt.return (Some hd)
+
     let insert username password =
       LangDb.full_transaction_block
         (fun dbh ->
@@ -362,12 +371,14 @@ module Translation = struct
                  correction_state integer NOT NULL,
                  correction_link integer NOT NULL) >>
 
-    let get_id_and_description dbh lword_id rword_id user_id =
+    let get_id_and_description ?correction_state:(co_st=0l)
+                               dbh lword_id rword_id user_id =
       let s = <:select< row |
                         row in $table$;
                         row.l_word = $int32:lword_id$;
                         row.r_word = $int32:rword_id$;
-                        row.user_id = $int32:user_id$>> in
+                        row.user_id = $int32:user_id$;
+                        row.correction_state = $int32:co_st$; >> in
       match_lwt (Lwt_Query.query dbh s) with
         | [] -> Lwt.return None
         | hd :: _ -> Lwt.return (Some (hd#!id, hd#!description))
@@ -421,15 +432,78 @@ module Translation = struct
                                row.correction_link = $int32:id$ >> in
          Lwt_Query.query dbh query
 
-    let unset l_word r_word l_lang r_lang user_id =
+    let unset ?original:(orig=true) l_word r_word l_lang r_lang user_id =
       LangDb.full_transaction_block (fun dbh ->
         lwt l_word = Word.get dbh l_word l_lang in
         lwt r_word = Word.get dbh r_word r_lang in
-        lwt () = delete_linked_corrections dbh l_word r_word user_id in
+        lwt () = if orig then
+                   delete_linked_corrections dbh l_word r_word user_id
+                 else Lwt.return_unit in
         let query = <:delete< row in $table$ |
                               row.l_word = $int32:l_word.Word.id$;
                               row.r_word = $int32:r_word.Word.id$;
                               row.user_id = $int32:user_id$ >> in
+        Lwt_Query.query dbh query)
+
+    let get_element_by_id dbh id =
+      let query = <:select< row |
+                            row in $table$;
+                            row.id = $int32:id$ >> in
+      match_lwt (Lwt_Query.query dbh query) with
+       | [] -> Lwt.fail (Failure "element does not exist anymore")
+       | h :: _ -> Lwt.return h
+
+    let ask_correction original_id corrector_id =
+      LangDb.full_transaction_block (fun dbh ->
+         lwt elt = get_element_by_id dbh original_id in
+         if elt#!correction_state = 0l then
+             match_lwt (User.get_by_id dbh corrector_id) with
+           | None -> Lwt.fail (Failure "Corrector does not exist anymore")
+           | Some _ ->
+              lwt () = insert ~correction_state:1l
+                              ~link_to_correction:original_id
+                              dbh elt#!l_word elt#!r_word
+                              corrector_id
+                              elt#!description in
+              match_lwt (get_id_and_description ~correction_state:1l
+                                             dbh
+                                             elt#!l_word
+                                             elt#!r_word
+                                             corrector_id) with
+              | None -> Lwt.fail (Failure "could not insert the correction")
+              | Some (id, _) ->
+                 Lwt_Query.query dbh
+                   <:update< row in $table$ := {correction_link = $int32:id$} |
+                             row.id = $int32:original_id$ >>
+         else Lwt.fail (Failure "A correction was created reload the page"))
+
+    let validate_correction correction_id =
+      LangDb.full_transaction_block (fun dbh ->
+        Lwt_Query.query dbh
+          <:update< row in $table$ := {correction_state = $int32:2l$} |
+                    row.id = $int32:correction_id$ >>)
+
+    let acknowledge_validated_correction ~implement_correction
+                                         original_id
+                                         correction_id =
+      LangDb.full_transaction_block (fun dbh ->
+        lwt original = get_element_by_id dbh original_id in
+        lwt correction = get_element_by_id dbh correction_id in
+        lwt () = Lwt_Query.query dbh
+                   <:delete< row in $table$ |
+                             row.id = $int32:correction_id$ >> in
+        let descr = correction#!description in
+        let query = if implement_correction then
+         <:update< row in $table$ := {correction_link = $int32:Int32.minus_one$;
+                                      correction_state = $int32:0l$;
+                                      l_word = $int32:correction#!l_word$;
+                                      r_word = $int32:correction#!r_word$;
+                                      description = $string:descr$} |
+                   row.id = $int32:original_id$>>
+                    else
+         <:update< row in $table$ := {correction_link = $int32:Int32.minus_one$;
+                                      correction_state = $int32:0l$ } |
+                   row.id = $int32:original_id$ >> in
         Lwt_Query.query dbh query)
 
     let get_translations user_id l_lang r_lang =

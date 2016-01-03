@@ -10,6 +10,17 @@ let set_translation (lword, rword, descr, src_lang, dst_lang, user_id) =
   Db.Translation.set lword rword src_lang dst_lang ~description:descr user_id
 let unset_translation (lword, rword, src_lang, dst_lang, user_id) =
   Db.Translation.unset lword rword src_lang dst_lang user_id
+let ask_correction (original_id, corrector_id) =
+  Db.Translation.ask_correction original_id corrector_id
+let validate_correction correction_id =
+  Db.Translation.validate_correction correction_id
+let acknowledge_validated_correction original_id correction_id =
+  Db.Translation.acknowledge_validated_correction
+    ~implement_correction:true original_id correction_id
+let cancel_validated_correction original_id correction_id =
+  Db.Translation.acknowledge_validated_correction
+    ~implement_correction:false
+    original_id correction_id
 
 let rpc_update_preferred_lang_src =
   server_function Json.t<int32 * string> update_preferred_lang_src
