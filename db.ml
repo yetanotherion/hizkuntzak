@@ -409,10 +409,23 @@ module Translation = struct
                Lwt.return (`Ok (id, descr))
                end)
 
+    let delete_linked_corrections dbh l_word r_word user_id =
+      match_lwt (get_id_and_description
+                 dbh
+                 l_word.Word.id
+                 r_word.Word.id
+                 user_id) with
+      | None -> Lwt.return_unit
+      | Some (id, _) ->
+         let query = <:delete< row in $table$ |
+                               row.correction_link = $int32:id$ >> in
+         Lwt_Query.query dbh query
+
     let unset l_word r_word l_lang r_lang user_id =
       LangDb.full_transaction_block (fun dbh ->
         lwt l_word = Word.get dbh l_word l_lang in
         lwt r_word = Word.get dbh r_word r_lang in
+        lwt () = delete_linked_corrections dbh l_word r_word user_id in
         let query = <:delete< row in $table$ |
                               row.l_word = $int32:l_word.Word.id$;
                               row.r_word = $int32:r_word.Word.id$;
