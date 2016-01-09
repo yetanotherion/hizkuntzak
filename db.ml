@@ -304,6 +304,22 @@ module User = struct
        | [] -> Lwt.return None
        | hd :: _ -> Lwt.return (Some hd)
 
+    let get_by_ids ids =
+      LangDb.full_transaction_block (fun dbh ->
+          lwt ids = Lwt_list.map_s (fun id -> get_by_id dbh id) ids in
+          let ids = List.fold_left (fun accum x ->
+                                    match x with
+                                    | None -> accum
+                                    | Some e -> e :: accum) [] ids in
+          lwt res = Lwt_list.map_s (fun x ->
+                     lwt src = LangDb.find_lang x#!preferred_lang_src in
+                     lwt dst = LangDb.find_lang x#!preferred_lang_dst in
+                     Lwt.return (Utils.Owner.({username=x#!username;
+                                               preferred_lang_src=src;
+                                               preferred_lang_dst=dst;
+                                               id=x#!id}))) ids in
+          Lwt.return res)
+
     let insert username password =
       LangDb.full_transaction_block
         (fun dbh ->
@@ -559,7 +575,7 @@ module Translation = struct
           let () = assert(x#!correction_state = 1l
                           || x#!correction_state = 2l) in
           let data = to_data x in
-          {correction=data;
+          {correction_d=data;
            corrected_id=x#!correction_link;
            validated=x#!correction_state = 2l}
         in

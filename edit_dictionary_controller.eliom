@@ -4,6 +4,8 @@ let update_preferred_lang_src (id, lang) =
   Db.User.update_preferred_lang_src id lang
 let update_preferred_lang_dst (id, lang) =
   Db.User.update_preferred_lang_dst id lang
+let get_users user_ids =
+  Db.User.get_by_ids user_ids
 let get_translations (id, src_lang, dst_lang) =
   Db.Translation.get_translations id src_lang dst_lang
 let set_translation (lword, rword, descr, src_lang, dst_lang, user_id) =
@@ -48,6 +50,8 @@ let rpc_unset_translation =
                          * string
                          * string
                          * int32> unset_translation
+let rpc_get_users =
+  server_function Json.t<int32 list> get_users
 
 }}
 
@@ -58,6 +62,9 @@ let update_translations model =
                                    get_preferred_lang_src model,
                                    get_preferred_lang_dst model) in
   lwt translations = %rpc_get_translations arg in
+  let different_ids = Utils.Translation.get_distinct_owners translations in
+  lwt owners = %rpc_get_users different_ids in
+  let translations = Utils.convert_translations translations owners in
   let trans = List.map Edit_dictionary_model.create_translation translations in
   Lwt.return (Edit_dictionary_model.update_translations model trans)
 
@@ -97,7 +104,7 @@ let delete_in_translation_in_db model translation =
                                                   get_preferred_lang_dst model)
   in
   let trans = Edit_dictionary_model.(get_translation translation) in
-  lwt () = %rpc_unset_translation Utils.Translation.(trans.content.source,
+  lwt () = %rpc_unset_translation Utils.TranslationInModel.(trans.content.source,
                                                      trans.content.dest,
                                                      preferred_lang_src,
                                                      preferred_lang_dst,
@@ -113,9 +120,12 @@ let add_translation f ?oldval:(oval=None) model source dest description =
   in
   let user_id,
       preferred_lang_src,
-      preferred_lang_dst = Edit_dictionary_model.(get_user_id model,
-                                                  get_preferred_lang_src model,
-                                                  get_preferred_lang_dst model)
+      preferred_lang_dst,
+      username
+    = Edit_dictionary_model.(get_user_id model,
+                             get_preferred_lang_src model,
+                             get_preferred_lang_dst model,
+                             get_user_username model)
   in
   lwt new_model =
     match_lwt (%rpc_set_translation (source,
@@ -125,16 +135,19 @@ let add_translation f ?oldval:(oval=None) model source dest description =
                                      preferred_lang_dst,
                                      user_id)) with
     | `Ok (id, description) ->
-       let owner = user_id in
-       let content = Utils.Translation.({id;
-                                         source;
-                                         dest;
-                                         description;
-                                         owner}) in
+       let owner = Utils.Owner.({username;
+                                 preferred_lang_src;
+                                 preferred_lang_dst;
+                                 id=user_id}) in
+       let content = Utils.TranslationInModel.({id;
+                                                source;
+                                                dest;
+                                                description;
+                                                owner}) in
        let correction = None in
        let new_translation = Edit_dictionary_model.create_translation
-                               Utils.Translation.({content;
-                                                   correction}) in
+                               Utils.TranslationInModel.({content;
+                                                          correction}) in
        Lwt.return (Edit_dictionary_model.add_translation model
                                                          new_translation)
   | `Nok -> Lwt.return (Edit_dictionary_model.set_translation_error model)

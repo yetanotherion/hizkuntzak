@@ -39,17 +39,17 @@ let build_raw_select name default others =
   let h, l = list_to_select default others in
   raw_select ~a:[] ~required:(pcdata "") ~name:name h l
 
-module Translation = struct
+module MakeTranslation (F: sig type t end) = struct
     type data = {
         id: Int32.t;
         source: string;
         dest: string;
         description: string;
-        owner: Int32.t;
+        owner: F.t;
       }
 
     type correction_data = {
-        correction: data;
+        correction_d: data;
         corrected_id: Int32.t;
         validated: bool;
       }
@@ -60,6 +60,68 @@ module Translation = struct
       }
   end
 
+module Translation = struct
+    module M = MakeTranslation(struct type t = Int32.t end)
+    include M
+    module Int32Set = Set.Make (struct type t = Int32.t
+                                       let compare = Pervasives.compare
+                                end)
+    let get_elt_owners t =
+      let owner = [t.content.owner] in
+      match t.correction with
+        | None -> owner
+        | Some x -> x.correction_d.owner :: owner
+
+     let get_distinct_owners l =
+       let owners = List.map get_elt_owners l in
+       let flattened = List.flatten owners in
+       let res = List.fold_left (fun accum x ->
+                                 Int32Set.add x accum)
+                                Int32Set.empty
+                                flattened in
+       Int32Set.elements res
+  end
+
+module Owner = struct
+    type t = {
+        username: string;
+        preferred_lang_src: string;
+        preferred_lang_dst: string;
+        id: Int32.t;
+      }
+  end
+module TranslationInModel = MakeTranslation(struct
+                                               type t = Owner.t
+                                               let compare = Pervasives.compare
+                                             end)
+let convert_data x owner =
+    {TranslationInModel.id=x.Translation.id;
+     TranslationInModel.source=x.Translation.source;
+     TranslationInModel.dest=x.Translation.dest;
+     TranslationInModel.description=x.Translation.description;
+     TranslationInModel.owner=owner}
+
+let convert_translations l owners =
+  let h = Hashtbl.create (List.length owners) in
+  let () = List.iter (fun x -> Hashtbl.add h x.Owner.id x) owners in
+  let convert_data_with_h x =
+    convert_data x (Hashtbl.find h x.Translation.owner)
+  in
+  let convert_correction x =
+    {TranslationInModel.correction_d=convert_data_with_h
+                                       x.Translation.correction_d;
+     TranslationInModel.corrected_id=x.Translation.corrected_id;
+     TranslationInModel.validated=x.Translation.validated}
+  in
+  let res = List.map (fun x ->
+                      let content = convert_data_with_h x.Translation.content
+                      in
+                      let correction = match x.Translation.correction with
+                        | None -> None
+                        | Some x -> Some (convert_correction x) in
+                      TranslationInModel.({content; correction})) l in
+  let () = Hashtbl.reset h in
+  res
 }}
 
 {server{

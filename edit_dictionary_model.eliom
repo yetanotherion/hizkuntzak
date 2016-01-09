@@ -11,7 +11,7 @@
       type state = [`Read | `Edit ]
       type t = {
           state: state;
-          value: Utils.Translation.t;
+          value: Utils.TranslationInModel.t;
         }
     end
   type t = {
@@ -33,7 +33,7 @@
   let get_user_id t = Current_user.(get_user_id t.current_user)
   let get_preferred_lang_src t = Current_user.(get_preferred_lang_src t.current_user)
   let get_preferred_lang_dst t = Current_user.(get_preferred_lang_dst t.current_user)
-
+  let get_user_username t = Current_user.(get_username t.current_user)
   let get_translations t =
     List.sort (fun x y ->
                let getval arg = Translation.(arg.value) in

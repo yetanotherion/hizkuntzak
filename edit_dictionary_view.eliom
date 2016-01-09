@@ -31,7 +31,7 @@
   let translation_ui f model translation =
     let open Edit_dictionary_model in
     let elt = Translation.(translation.value) in
-    let x = Utils.Translation.(elt.content) in
+    let x = Utils.TranslationInModel.(elt.content) in
     match Translation.(translation.state) with
     | `Read ->
        let button = Utils.create_button `ActionLittle
@@ -40,14 +40,14 @@
                                          Edit_dictionary_controller.edit_translation f
                                                                                      model
                                                                                      translation) in
-        Utils.Translation.([[Html5.pcdata x.source];
+        Utils.TranslationInModel.([[Html5.pcdata x.source];
                             [Html5.pcdata x.dest];
                             [Html5.pcdata x.description;
                              Html5.br ();
                              button]])
      | `Edit ->
         let cn = Utils.create_input ~name_for_placeholder:false in
-        let source, dest, description = Utils.Translation.(cn x.source, cn x.dest, cn x.description) in
+        let source, dest, description = Utils.TranslationInModel.(cn x.source, cn x.dest, cn x.description) in
         let edit_button = Utils.create_button `ActionLittle
                                               "Gehitu"
                                               (fun () ->
@@ -69,12 +69,12 @@
                                                                                                     model
                                                                                                     translation) in
 
-        Utils.Translation.([[source];
-                            [dest];
-                            [description;
-                             edit_button;
-                             delete_button;
-                             cancel_button]])
+        Utils.TranslationInModel.([[source];
+                                  [dest];
+                                  [description;
+                                   edit_button;
+                                   delete_button;
+                                   cancel_button]])
  let create_src_or_dst_lang_ui f model src_or_dst =
     let open Edit_dictionary_model in
     let lang, state =
@@ -133,8 +133,8 @@
                                      Edit_dictionary_controller.back_to_learning f model) in
    let translations = Edit_dictionary_model.get_translations model in
    let pairs = List.map (fun x -> let elt = Edit_dictionary_model.get_translation x in
-                                  let x = Utils.Translation.(elt.content) in
-                                  Utils.Translation.(x.source, x.dest)) translations in
+                                  let x = Utils.TranslationInModel.(elt.content) in
+                                  Utils.TranslationInModel.(x.source, x.dest)) translations in
    let () = Dictionary_game.Client.create_and_setup (To_dom.of_div div) pairs in
    [button; div]
 
