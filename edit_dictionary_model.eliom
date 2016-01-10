@@ -42,6 +42,20 @@
 
   let get_translation translation = Translation.(translation.value)
 
+  let get_translation_function t translation =
+    let user_id = get_user_id t in
+    let open Utils.TranslationInModel in
+    let value = Translation.(translation.value) in
+    let get_owner_id x = x.owner.Utils.Owner.id in
+    if user_id = get_owner_id value.content then `Original translation
+    else
+      match value.correction with
+      | None -> failwith("Missing correction")
+      | Some x ->
+         if (get_owner_id x.correction_d) <> user_id then
+           failwith("Correction does not have right id")
+         else `Correction (x, value.content)
+
   let update_preferred_lang t src_or_dst lang =
     let new_user, new_state =
       match src_or_dst with

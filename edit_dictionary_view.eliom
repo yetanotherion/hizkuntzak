@@ -28,7 +28,7 @@
     | "eus" -> "euskaraz"
     | _ -> assert false
 
-  let translation_ui f model translation =
+  let original_ui f model translation =
     let open Edit_dictionary_model in
     let elt = Translation.(translation.value) in
     let x = Utils.TranslationInModel.(elt.content) in
@@ -37,9 +37,11 @@
        let button = Utils.create_button `ActionLittle
                                         "Aldatu"
                                         (fun () ->
-                                         Edit_dictionary_controller.edit_translation f
-                                                                                     model
-                                                                                     translation) in
+                                         Edit_dictionary_controller.(
+                                           edit_translation
+                                           f
+                                           model)
+                                           translation) in
         Utils.TranslationInModel.([[Html5.pcdata x.source];
                                    [Html5.pcdata x.dest];
                                    [Html5.pcdata x.description;
@@ -47,28 +49,41 @@
                                     button]])
      | `Edit ->
         let cn = Utils.create_input ~name_for_placeholder:false in
-        let (source, dest, description), id = Utils.TranslationInModel.((cn x.source, cn x.dest, cn x.description),
-                                                                        x.id) in
+        let (source, dest, description), id = Utils.TranslationInModel.(
+            (cn x.source, cn x.dest, cn x.description),
+            x.id) in
         let edit_button = Utils.create_button `ActionLittle
                                               "Aldatu"
                                               (fun () ->
                                                let i = Utils.input_value in
-                                               let s, dst, descr = i source, i dest, i description in
-                                               Edit_dictionary_controller.update_translation f
-                                                                                             model
-                                                                                             id s dst descr) in
+                                               let s,
+                                                   dst,
+                                                   descr = i source,
+                                                           i dest,
+                                                           i description in
+                                               Edit_dictionary_controller.(
+                                                 update_translation f
+                                                                    model
+                                                                    id
+                                                                    s
+                                                                    dst
+                                                                    descr)) in
         let delete_button = Utils.create_button `ActionLittleRed
                                               "Kendu"
                                               (fun () ->
-                                               Edit_dictionary_controller.del_translation f
-                                                                                          model
-                                                                                          translation) in
+                                               Edit_dictionary_controller.(
+                                                 del_translation
+                                                   f
+                                                   model
+                                                   translation)) in
         let cancel_button = Utils.create_button `Goto
                                                 "Utzi"
                                                 (fun () ->
-                                                 Edit_dictionary_controller.cancel_edit_translation f
-                                                                                                    model
-                                                                                                    translation) in
+                                                 Edit_dictionary_controller.(
+                                                   cancel_edit_translation
+                                                     f
+                                                     model
+                                                     translation)) in
 
         [[source];
          [dest];
@@ -76,6 +91,14 @@
           edit_button;
           delete_button;
           cancel_button]]
+
+  let correction_ui f model correction original =
+      original_ui f model original
+
+  let translation_ui f model translation =
+    match Edit_dictionary_model.get_translation_function model translation with
+    | `Original x -> original_ui f model translation
+    | `Correction (correction, original) -> original_ui f model translation
 
  let create_src_or_dst_lang_ui f model src_or_dst =
     let open Edit_dictionary_model in
@@ -91,28 +114,39 @@
     | `Unit ->
        let button = Utils.create_button `Goto
                                         "Ez, beste hizkuntza bat nahi dut"
-                                        (fun () -> Edit_dictionary_controller.change_preferred_lang f
-                                                                                                    model
-                                                                                                    src_or_dst) in
+                                        (fun () ->
+                                         Edit_dictionary_controller.(
+                                           change_preferred_lang
+                                             f
+                                             model
+                                             src_or_dst)) in
        [Html5.pcdata (lang ^ " ");
         button]
     | `Change_preferred_lang l ->
-       let select = Utils.create_select (List.map (fun x -> (preferred_lang_to_string x)) l) in
+       let select = Utils.create_select (List.map
+                                           (fun x ->
+                                            (preferred_lang_to_string x)) l) in
        let c_button = Utils.create_button `Goto
                                           "Utzi"
-                                          (fun () -> Edit_dictionary_controller.back_to_init f
-                                                                                             model
-                                                                                             src_or_dst) in
+                                          (fun () ->
+                                           Edit_dictionary_controller.(
+                                             back_to_init f
+                                                          model
+                                                          src_or_dst)) in
 
 
        let u_button = Utils.create_button `ActionLittle
                                           "Eguneratu"
                                           (fun () ->
-                                           let input_val = Utils.select_value select in
-                                           Edit_dictionary_controller.update_preferred_lang f
-                                                                                            model
-                                                                                            src_or_dst
-                                                                                            (string_to_preferred_lang input_val)) in
+                                           let input_val =
+                                             Utils.select_value select in
+                                           Edit_dictionary_controller.(
+                                             update_preferred_lang
+                                               f
+                                               model
+                                               src_or_dst
+                                               (string_to_preferred_lang
+                                                  input_val))) in
 
        [Html5.pcdata "Nik ";
         select;
