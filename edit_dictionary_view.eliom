@@ -28,13 +28,7 @@
     | "eus" -> "euskaraz"
     | _ -> assert false
 
-  let original_ui f model original =
-    let open Edit_dictionary_model in
-    let data, state, correction_state =
-      Translation.Original.(
-        original.data,
-        original.state,
-        original.correction_state) in
+  let create_edition_ui f model state data translation =
     match state with
     | `Read ->
        let button = Utils.create_button `ActionLittle
@@ -43,8 +37,8 @@
                                          Edit_dictionary_controller.(
                                            edit_translation
                                            f
-                                           model)
-                                           (`Original original)) in
+                                           model
+                                           translation)) in
         Utils.TranslationInModel.([[Html5.pcdata data.source];
                                    [Html5.pcdata data.dest];
                                    [Html5.pcdata data.description;
@@ -78,7 +72,7 @@
                                                  del_translation
                                                    f
                                                    model
-                                                   (`Original original))) in
+                                                   translation)) in
         let cancel_button = Utils.create_button `Goto
                                                 "Utzi"
                                                 (fun () ->
@@ -86,7 +80,7 @@
                                                    cancel_edit_translation
                                                      f
                                                      model
-                                                     (`Original original))) in
+                                                     translation)) in
 
         [[source];
          [dest];
@@ -95,14 +89,27 @@
           delete_button;
           cancel_button]]
 
-  let correction_ui f model correction original =
-    [[]]
+  let original_ui f model translation original =
+    let open Edit_dictionary_model in
+    let data, state, correction_state =
+      Translation.Original.(
+        original.data,
+        original.state,
+        original.correction_state) in
+    create_edition_ui f model state data translation
+
+  let correction_ui f model translation correction =
+    let open Edit_dictionary_model in
+    let data, state = Translation.Correction.(
+        correction.data,
+        correction.state) in
+    create_edition_ui f model state data translation
 
   let translation_ui f model translation =
     let open Edit_dictionary_model in
     match translation with
-    | `Original x -> original_ui f model x
-    | `Correction x -> assert(false)
+    | `Original x -> original_ui f model translation x
+    | `Correction x -> correction_ui f model translation x
 
  let create_src_or_dst_lang_ui f model src_or_dst =
     let open Edit_dictionary_model in
