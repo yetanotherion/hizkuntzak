@@ -47,15 +47,16 @@
                              button]])
      | `Edit ->
         let cn = Utils.create_input ~name_for_placeholder:false in
-        let source, dest, description = Utils.TranslationInModel.(cn x.source, cn x.dest, cn x.description) in
+        let (source, dest, description), id = Utils.TranslationInModel.((cn x.source, cn x.dest, cn x.description),
+                                                                        x.id) in
         let edit_button = Utils.create_button `ActionLittle
-                                              "Gehitu"
+                                              "Aldatu"
                                               (fun () ->
                                                let i = Utils.input_value in
                                                let s, dst, descr = i source, i dest, i description in
-                                               Edit_dictionary_controller.add_translation ~oldval:(Some translation) f
-                                                                                          model
-                                                                                          s dst descr) in
+                                               Edit_dictionary_controller.update_translation f
+                                                                                             model
+                                                                                             id s dst descr) in
         let delete_button = Utils.create_button `ActionLittleRed
                                               "Kendu"
                                               (fun () ->

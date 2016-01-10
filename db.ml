@@ -416,6 +416,17 @@ module Translation = struct
        <:update< row in $table$ := {description = $string:description$} |
                  row.id = $int32:synonym_id$ >>
 
+    let update_translation id l_lang r_lang l_word r_word description =
+      LangDb.full_transaction_block (fun dbh ->
+        lwt l = Word.get dbh l_word l_lang in
+        lwt r = Word.get dbh r_word r_lang in
+        let query = <:update< row in $table$ :=
+                              {l_word = $int32:l.Word.id$;
+                               r_word = $int32:r.Word.id$;
+                               description = $string:description$} |
+                               row.id = $int32:id$ >> in
+        Lwt_Query.query dbh query)
+
     let set ?description:(descr="") l_word r_word l_lang r_lang user_id =
       LangDb.full_transaction_block (fun dbh ->
         lwt l = Word.get dbh l_word l_lang in
