@@ -41,10 +41,10 @@
                                                                                      model
                                                                                      translation) in
         Utils.TranslationInModel.([[Html5.pcdata x.source];
-                            [Html5.pcdata x.dest];
-                            [Html5.pcdata x.description;
-                             Html5.br ();
-                             button]])
+                                   [Html5.pcdata x.dest];
+                                   [Html5.pcdata x.description;
+                                    Html5.br ();
+                                    button]])
      | `Edit ->
         let cn = Utils.create_input ~name_for_placeholder:false in
         let (source, dest, description), id = Utils.TranslationInModel.((cn x.source, cn x.dest, cn x.description),
@@ -70,12 +70,13 @@
                                                                                                     model
                                                                                                     translation) in
 
-        Utils.TranslationInModel.([[source];
-                                  [dest];
-                                  [description;
-                                   edit_button;
-                                   delete_button;
-                                   cancel_button]])
+        [[source];
+         [dest];
+         [description;
+          edit_button;
+          delete_button;
+          cancel_button]]
+
  let create_src_or_dst_lang_ui f model src_or_dst =
     let open Edit_dictionary_model in
     let lang, state =
