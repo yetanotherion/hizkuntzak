@@ -28,11 +28,14 @@
     | "eus" -> "euskaraz"
     | _ -> assert false
 
-  let original_ui f model translation =
+  let original_ui f model original =
     let open Edit_dictionary_model in
-    let elt = Translation.(translation.value) in
-    let x = Utils.TranslationInModel.(elt.content) in
-    match Translation.(translation.state) with
+    let data, state, correction_state =
+      Translation.Original.(
+        original.data,
+        original.state,
+        original.correction_state) in
+    match state with
     | `Read ->
        let button = Utils.create_button `ActionLittle
                                         "Aldatu"
@@ -41,17 +44,17 @@
                                            edit_translation
                                            f
                                            model)
-                                           translation) in
-        Utils.TranslationInModel.([[Html5.pcdata x.source];
-                                   [Html5.pcdata x.dest];
-                                   [Html5.pcdata x.description;
+                                           (`Original original)) in
+        Utils.TranslationInModel.([[Html5.pcdata data.source];
+                                   [Html5.pcdata data.dest];
+                                   [Html5.pcdata data.description;
                                     Html5.br ();
                                     button]])
      | `Edit ->
         let cn = Utils.create_input ~name_for_placeholder:false in
         let (source, dest, description), id = Utils.TranslationInModel.(
-            (cn x.source, cn x.dest, cn x.description),
-            x.id) in
+            (cn data.source, cn data.dest, cn data.description),
+            data.id) in
         let edit_button = Utils.create_button `ActionLittle
                                               "Aldatu"
                                               (fun () ->
@@ -75,7 +78,7 @@
                                                  del_translation
                                                    f
                                                    model
-                                                   translation)) in
+                                                   (`Original original))) in
         let cancel_button = Utils.create_button `Goto
                                                 "Utzi"
                                                 (fun () ->
@@ -83,7 +86,7 @@
                                                    cancel_edit_translation
                                                      f
                                                      model
-                                                     translation)) in
+                                                     (`Original original))) in
 
         [[source];
          [dest];
@@ -93,12 +96,13 @@
           cancel_button]]
 
   let correction_ui f model correction original =
-      original_ui f model original
+    [[]]
 
   let translation_ui f model translation =
-    match Edit_dictionary_model.get_translation_function model translation with
-    | `Original x -> original_ui f model translation
-    | `Correction (correction, original) -> original_ui f model translation
+    let open Edit_dictionary_model in
+    match translation with
+    | `Original x -> original_ui f model x
+    | `Correction x -> assert(false)
 
  let create_src_or_dst_lang_ui f model src_or_dst =
     let open Edit_dictionary_model in
@@ -166,11 +170,10 @@
    let button = Utils.create_button `ActionLittle
                                     "Hiztegira itzuli"
                                     (fun () ->
-                                     Edit_dictionary_controller.back_to_learning f model) in
-   let translations = Edit_dictionary_model.get_translations model in
-   let pairs = List.map (fun x -> let elt = Edit_dictionary_model.get_translation x in
-                                  let x = Utils.TranslationInModel.(elt.content) in
-                                  Utils.TranslationInModel.(x.source, x.dest)) translations in
+                                     Edit_dictionary_controller.back_to_learning
+                                       f
+                                       model) in
+   let pairs = Edit_dictionary_model.get_pairs model in
    let () = Dictionary_game.Client.create_and_setup (To_dom.of_div div) pairs in
    [button; div]
 

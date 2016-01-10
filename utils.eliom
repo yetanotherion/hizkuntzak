@@ -58,6 +58,7 @@ module MakeTranslation (F: sig type t end) = struct
         content: data;
         correction: correction_data option;
       }
+    let get_data_id x = x.id
   end
 
 module Translation = struct
@@ -89,6 +90,7 @@ module Owner = struct
         preferred_lang_dst: string;
         id: Int32.t;
       }
+    let get_username t = t.username
   end
 module TranslationInModel = MakeTranslation(struct
                                                type t = Owner.t

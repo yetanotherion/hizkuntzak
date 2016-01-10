@@ -10,8 +10,8 @@ let get_translations (id, src_lang, dst_lang) =
   Db.Translation.get_translations id src_lang dst_lang
 let set_translation (lword, rword, descr, src_lang, dst_lang, user_id) =
   Db.Translation.set lword rword src_lang dst_lang ~description:descr user_id
-let unset_translation (lword, rword, src_lang, dst_lang, user_id) =
-  Db.Translation.unset lword rword src_lang dst_lang user_id
+let delete_translation (id, is_original) =
+  Db.Translation.delete id is_original
 let update_translation (id, src_lang, dst_lang, lword, rword, descr) =
   Db.Translation.update_translation id src_lang dst_lang lword rword descr
 let ask_correction (original_id, corrector_id) =
@@ -46,12 +46,9 @@ let rpc_set_translation =
                          * string
                          * int32> set_translation
 
-let rpc_unset_translation =
-  server_function Json.t<string
-                         * string
-                         * string
-                         * string
-                         * int32> unset_translation
+let rpc_delete_translation =
+  server_function Json.t<int32
+                         * bool> delete_translation
 let rpc_update_translation =
   server_function Json.t<int32
                          * string
@@ -74,7 +71,8 @@ let update_translations model =
   let different_ids = Utils.Translation.get_distinct_owners translations in
   lwt owners = %rpc_get_users different_ids in
   let translations = Utils.convert_translations translations owners in
-  let trans = List.map Edit_dictionary_model.create_translation translations in
+  let trans = List.map (Edit_dictionary_model.to_translation model)
+                       translations in
   Lwt.return (Edit_dictionary_model.update_translations model trans)
 
 let update_preferred_lang f model src_or_dst preferred_lang =
@@ -106,19 +104,11 @@ let back_to_init f model src_or_dst =
   Lwt.return_unit
 
 let delete_in_translation_in_db model translation =
-  let user_id,
-      preferred_lang_src,
-      preferred_lang_dst = Edit_dictionary_model.(get_user_id model,
-                                                  get_preferred_lang_src model,
-                                                  get_preferred_lang_dst model)
+  let id, is_original =
+    Edit_dictionary_model.Translation.(get_id translation,
+                                       is_original translation)
   in
-  let trans = Edit_dictionary_model.(get_translation translation) in
-  lwt () = %rpc_unset_translation Utils.TranslationInModel.(
-             trans.content.source,
-             trans.content.dest,
-             preferred_lang_src,
-             preferred_lang_dst,
-             user_id) in
+  lwt () = %rpc_delete_translation (id, is_original) in
   Lwt.return (Edit_dictionary_model.delete_translation_from_model
                 model translation)
 
@@ -170,9 +160,8 @@ let add_translation f model source dest description =
                                                 description;
                                                 owner}) in
        let correction = None in
-       let new_translation = Edit_dictionary_model.create_translation
-                               Utils.TranslationInModel.({content;
-                                                          correction}) in
+       let new_translation = Utils.TranslationInModel.({content;
+                                                        correction}) in
        Lwt.return (Edit_dictionary_model.add_translation model
                                                          new_translation)
   | `Nok -> Lwt.return (Edit_dictionary_model.set_translation_error model)
