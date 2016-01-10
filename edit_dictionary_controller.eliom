@@ -14,7 +14,8 @@ let delete_translation (id, is_original) =
   Db.Translation.delete id is_original
 let update_translation (id, src_lang, dst_lang, lword, rword, descr) =
   Db.Translation.update_translation id src_lang dst_lang lword rword descr
-let ask_correction (original_id, corrector_id) =
+let ask_correction (original_id, corrector_name) =
+  lwt corrector_id = Db.User.get_existing_id_in_db corrector_name in
   Db.Translation.ask_correction original_id corrector_id
 let validate_correction correction_id =
   Db.Translation.validate_correction correction_id
@@ -58,6 +59,10 @@ let rpc_update_translation =
                          * string> update_translation
 let rpc_get_users =
   server_function Json.t<int32 list> get_users
+
+let rpc_ask_correction =
+  server_function Json.t<int32
+                         * string> ask_correction
 
 }}
 
@@ -125,12 +130,38 @@ let update_translation f model id source dest description =
                                     description) in
   (* XXX we don't reload the page, i.e.
      call update_translations, to limit the number of db queries *)
-  let new_model = Edit_dictionary_model.update_translation_value
+  let new_model = Edit_dictionary_model.update_translation
                     model
                     id
                     (`EditSrcDstDescription (source, dest, description)) in
   let () = f new_model in
   Lwt.return_unit
+
+let set_correction_state new_state f model original =
+  let open Edit_dictionary_model in
+  let new_original = Translation.Original.(
+      {original with correction_state=new_state}) in
+  let new_translation = `Original new_original in
+  let new_model = update_translation_with_new model new_translation in
+  let () = f new_model in
+  Lwt.return_unit
+
+let set_to_choosing_corrector f model original corrector =
+  set_correction_state (`ChoosingCorrector corrector) f model original
+
+let set_to_no_corrector f model original =
+  set_correction_state `None f model original
+
+let set_corrector f model original corrector =
+  let id = Edit_dictionary_model.Translation.get_original_id original in
+  try_lwt
+    lwt () = %rpc_ask_correction (id, corrector) in
+    (* we reload everything here *)
+    lwt new_model = update_translations model in
+    let () = f new_model in
+    Lwt.return_unit
+  with _ ->
+    set_correction_state (`CorrectorDoesNotExist corrector) f model original
 
 let add_translation f model source dest description =
   let user_id,

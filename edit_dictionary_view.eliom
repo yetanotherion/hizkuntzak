@@ -89,6 +89,13 @@
           delete_button;
           cancel_button]]
 
+  let append_to_third_element l elements =
+    let one, two, three = List.nth l 0,
+                          List.nth l 1,
+                          List.nth l 2 in
+    let three = three @ elements in
+    [one; two; three]
+
   let original_ui f model translation original =
     let open Edit_dictionary_model in
     let data, state, correction_state =
@@ -96,7 +103,71 @@
         original.data,
         original.state,
         original.correction_state) in
-    create_edition_ui f model state data translation
+    let edition_buttons = create_edition_ui f model state data translation in
+    let cn = Utils.create_input ~name_for_placeholder:false in
+    match correction_state with
+    | `None ->
+       let button = Utils.create_button `Goto
+                                        "Zuzenketa galdetu"
+                                        (fun () ->
+                                         Edit_dictionary_controller.(
+                                           set_to_choosing_corrector
+                                             f
+                                             model
+                                             original
+                                             ""))
+       in
+       append_to_third_element edition_buttons [Html5.br ();
+                                                button]
+    | `ChoosingCorrector s ->
+       let corrector = cn s in
+       let edit_button = Utils.create_button `ActionLittle
+                                             "Hautatu"
+                                             (fun () ->
+                                              let i = Utils.input_value in
+                                              let corrector = i corrector in
+                                              Edit_dictionary_controller.(
+                                                set_corrector
+                                                  f
+                                                  model
+                                                  original
+                                                  corrector)) in
+       let cancel_button = Utils.create_button `ActionLittleRed
+                                               "Kendu"
+                                               (fun () ->
+                                                Edit_dictionary_controller.(
+                                                  set_to_no_corrector
+                                                    f
+                                                    model
+                                                    original)) in
+       append_to_third_element edition_buttons [Html5.br ();
+                                                corrector;
+                                                edit_button;
+                                                cancel_button]
+    | `CorrectorDoesNotExist corrector ->
+       let msg = Html5.pcdata (Printf.sprintf
+                                 "%s erabiltzailerik ez dago"
+                                 corrector) in
+       let ok = Utils.create_button `ActionLittle
+                                    "Ados"
+                                    (fun () ->
+                                     Edit_dictionary_controller.(
+                                       set_to_choosing_corrector
+                                         f
+                                         model
+                                         original
+                                         corrector)) in
+       append_to_third_element edition_buttons [Html5.br ();
+                                                msg;
+                                                ok]
+    | `CorrectorChosen x ->
+       let username = Edit_dictionary_model.Translation.get_username x in
+       let msg = Html5.pcdata (Printf.sprintf
+                                 "%s erabiltzaileari zuzenketa galdetua"
+                                 username) in
+       append_to_third_element edition_buttons [Html5.br ();
+                                                msg]
+    | _ -> edition_buttons
 
   let correction_ui f model translation correction =
     let open Edit_dictionary_model in

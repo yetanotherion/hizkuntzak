@@ -327,12 +327,15 @@ module User = struct
            | Some _ -> raise User_exists
            | None -> do_insert dbh username password)
 
-
     let get_existing_id dbh username =
       lwt res = get dbh username in
       match res with
          | None -> Lwt.fail User_not_found
          | Some u -> Lwt.return u#!id
+
+    let get_existing_id_in_db username =
+      LangDb.full_transaction_block
+        (fun dbh -> get_existing_id dbh username)
 
     let check_password username password =
       LangDb.use_db

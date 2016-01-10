@@ -21,7 +21,7 @@
       module Original = struct
           type data = Utils.TranslationInModel.data
           type correction_state = [`None
-                                  | `ChoosingCorrector
+                                  | `ChoosingCorrector of string
                                   | `CorrectorDoesNotExist of string
                                   | `CorrectorChosen of data
                                   | `CorrectionDone of data ]
@@ -42,10 +42,12 @@
         | `Correction x -> `Correction {x with
                                          Correction.state = state}
 
+      let get_original_id x =
+        Utils.TranslationInModel.get_data_id x.Original.data
+
       let get_id t =
         match t with
-        | `Original x -> Utils.TranslationInModel.get_data_id
-                           x.Original.data
+        | `Original x -> get_original_id x
         | `Correction x -> Utils.TranslationInModel.get_data_id
                              x.Correction.data
       let is_original t =
@@ -53,12 +55,12 @@
         | `Original _ -> true
         | `Correction _ -> false
 
+      let get_username data =
+        Utils.(
+          Owner.get_username
+            data.TranslationInModel.owner)
+
       let get_compare_key t =
-        let get_username data =
-          Utils.(
-                Owner.get_username
-                  data.TranslationInModel.owner)
-        in
         match t with
         | `Original x ->
            Original.(
@@ -188,7 +190,14 @@
   let set_translation_as_read t translation =
     update_translation_state `Read t translation
 
-  let update_translation_value t id operation =
+  let update_translation_with_new t new_translation =
+    let id = Translation.get_id new_translation in
+    let element, others = List.partition (fun x ->
+                                          (Translation.get_id x) = id)
+                                         t.translations in
+    update_translations t (new_translation :: others)
+
+  let update_translation t id operation =
     let element, others = List.partition (fun x ->
                                           (Translation.get_id x) = id)
                                          t.translations in
