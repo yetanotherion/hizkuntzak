@@ -45,11 +45,15 @@
       let get_original_id x =
         Utils.TranslationInModel.get_data_id x.Original.data
 
+      let get_correction_id x =
+        Utils.TranslationInModel.get_data_id
+          x.Correction.data
+
       let get_id t =
         match t with
         | `Original x -> get_original_id x
-        | `Correction x -> Utils.TranslationInModel.get_data_id
-                             x.Correction.data
+        | `Correction x -> get_correction_id x
+
       let is_original t =
         match t with
         | `Original _ -> true

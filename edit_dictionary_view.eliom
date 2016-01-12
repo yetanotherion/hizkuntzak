@@ -89,12 +89,23 @@
           delete_button;
           cancel_button]]
 
-  let append_to_third_element l elements =
+  let append_to_nth_element l elements n =
     let one, two, three = List.nth l 0,
                           List.nth l 1,
                           List.nth l 2 in
-    let three = three @ elements in
-    [one; two; three]
+    match n with
+    | `One -> [one @ elements; two; three]
+    | `Two -> [one; two @ elements; three]
+    | `Three -> [one; two; three @ elements]
+
+  let append_to_fst_element l elements =
+    append_to_nth_element l elements `One
+
+  let append_to_snd_element l elements =
+    append_to_nth_element l elements `Two
+
+  let append_to_third_element l elements =
+    append_to_nth_element l elements `Three
 
   let original_ui f model translation original =
     let open Edit_dictionary_model in
@@ -167,14 +178,48 @@
                                  username) in
        append_to_third_element edition_buttons [Html5.br ();
                                                 msg]
-    | _ -> edition_buttons
+    | `CorrectionDone data ->
+       let ok = Utils.create_button `ActionLittle
+                                    "Zuzenketa aplikatu"
+                                    (fun () ->
+                                     Edit_dictionary_controller.(
+                                       acknowledge_validated_correction
+                                         f
+                                         model
+                                         original
+                                         data)) in
+       let nok = Utils.create_button `ActionLittleRed
+                                    "Zuzenketa baztertu"
+                                    (fun () ->
+                                     Edit_dictionary_controller.(
+                                       cancel_validated_correction
+                                         f
+                                         model
+                                         original
+                                         data)) in
+       append_to_third_element edition_buttons [ok; nok]
 
   let correction_ui f model translation correction =
     let open Edit_dictionary_model in
-    let data, state = Translation.Correction.(
+    let data, state, original = Translation.Correction.(
         correction.data,
-        correction.state) in
-    create_edition_ui f model state data translation
+        correction.state,
+        correction.original) in
+    let edition_buttons = create_edition_ui f model state data translation in
+    let original_username = Translation.get_username original in
+    let ok = Utils.create_button `Goto
+                                 (Printf.sprintf
+                                    "Zuzenketa Ok -> %s"
+                                    original_username)
+                                 (fun () ->
+                                     Edit_dictionary_controller.(
+                                       validate_correction
+                                         f
+                                         model
+                                         correction)) in
+    let ui = append_to_third_element edition_buttons
+                                     [ok] in
+    ui
 
   let translation_ui f model translation =
     let open Edit_dictionary_model in

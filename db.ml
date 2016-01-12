@@ -540,11 +540,12 @@ module Translation = struct
                         chosen_translation in $translations$;
                         synonym.correction_state <> $int32:0l$;
                         synonym.correction_link = chosen_translation.id >> in
-        (* all the corrections asked by another user to the current user *)
+        (* all the not yet finished
+           corrections asked by another user to the current user *)
         let corrections = << synonym |
                              synonym in $table$;
                              synonym.user_id = $int32:user_id$;
-                             synonym.correction_state <> $int32:0l$ >> in
+                             synonym.correction_state = $int32:1l$ >> in
         let corrections_links = << synonym |
                                    synonym in $table$;
                                    link in $corrections$;

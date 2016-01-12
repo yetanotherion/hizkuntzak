@@ -19,10 +19,10 @@ let ask_correction (original_id, corrector_name) =
   Db.Translation.ask_correction original_id corrector_id
 let validate_correction correction_id =
   Db.Translation.validate_correction correction_id
-let acknowledge_validated_correction original_id correction_id =
+let acknowledge_validated_correction (original_id, correction_id) =
   Db.Translation.acknowledge_validated_correction
     ~implement_correction:true original_id correction_id
-let cancel_validated_correction original_id correction_id =
+let cancel_validated_correction (original_id, correction_id) =
   Db.Translation.acknowledge_validated_correction
     ~implement_correction:false
     original_id correction_id
@@ -63,6 +63,16 @@ let rpc_get_users =
 let rpc_ask_correction =
   server_function Json.t<int32
                          * string> ask_correction
+
+let rpc_validate_correction =
+  server_function Json.t<int32> validate_correction
+
+let rpc_acknowledge_validated_correction =
+  server_function Json.t<int32
+                         * int32 > acknowledge_validated_correction
+let rpc_cancel_validated_correction =
+  server_function Json.t<int32
+                         * int32 > cancel_validated_correction
 
 }}
 
@@ -148,6 +158,34 @@ let set_correction_state new_state f model original =
 
 let set_to_choosing_corrector f model original corrector =
   set_correction_state (`ChoosingCorrector corrector) f model original
+
+let validate_correction f model element =
+  lwt () = %rpc_validate_correction
+              (Edit_dictionary_model.Translation.get_correction_id
+                 element) in
+  lwt new_model = update_translations model in
+  let () = f new_model in
+  Lwt.return_unit
+
+let acknowledge_validated_correction f model original correction =
+  let original, correction = Edit_dictionary_model.Translation.(
+      get_original_id original,
+      Utils.TranslationInModel.get_data_id correction) in
+  lwt () = %rpc_acknowledge_validated_correction
+              (original, correction) in
+  lwt new_model = update_translations model in
+  let () = f new_model in
+  Lwt.return_unit
+
+let cancel_validated_correction f model original correction =
+  let original, correction = Edit_dictionary_model.Translation.(
+      get_original_id original,
+      Utils.TranslationInModel.get_data_id correction) in
+  lwt () = %rpc_cancel_validated_correction
+              (original, correction) in
+  lwt new_model = update_translations model in
+  let () = f new_model in
+  Lwt.return_unit
 
 let set_to_no_corrector f model original =
   set_correction_state `None f model original
