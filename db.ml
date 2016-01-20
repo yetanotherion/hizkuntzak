@@ -164,6 +164,12 @@ module Word = struct
                     row.lang = $int32:language_id$ >>
 
     let get_words word_ids =
+      << row |
+         row in $table$;
+         word in $word_ids$;
+         row.id = word.id; >>
+
+    let get_words_text_by_ids word_ids =
       <:select< {row.word} |
                  row in $table$;
                  word in $word_ids$;
@@ -527,8 +533,8 @@ module Translation = struct
 
     let get_translations user_id l_lang r_lang =
       LangDb.full_transaction_block (fun dbh ->
-        lwt words_in_r_lang = Word.words_in_language r_lang in
-        lwt words_in_l_lang = Word.words_in_language l_lang in
+        lwt l_lang_id = LangDb.find l_lang in
+        lwt r_lang_id = LangDb.find r_lang in
         (* let's find all the translations asked by the current user *)
         let translations = << synonym |
                               synonym in $table$;
@@ -553,18 +559,25 @@ module Translation = struct
         let overall = << union $translations$ $linked$ >> in
         let overall = << union $corrections$ $overall$ >> in
         let overall = << union $corrections_links$ $overall$ >> in
+        let l_ids = << {id = t.l_word} |
+                        t in $overall$ >> in
+        let r_ids = << {id = t.r_word} |
+                        t in $overall$ >> in
+        let l_words = Word.get_words l_ids in
+        let r_words = Word.get_words r_ids in
         let query =
                <:select< {descr = t.description;
                           l_word = lw.word; r_word = rw.word;
+                          l_lang_id = lw.lang; r_lang_id = rw.lang;
                           correction_state = t.correction_state;
                           correction_link = t.correction_link;
                           id = t.id;
                           user_id = t.user_id } |
                           t in $overall$;
-                          lw in $words_in_l_lang$;
-                          rw in $words_in_r_lang$;
-                          t.r_word = rw.id;
-                          t.l_word = lw.id >>
+                          lw in $l_words$;
+                          rw in $r_words$;
+                          t.l_word = lw.id;
+                          t.r_word = rw.id >>
         in
         lwt res = Lwt_Query.query dbh query in
         let open Utils.Translation in
@@ -574,6 +587,14 @@ module Translation = struct
              dest=x#!r_word;
              description=x#!descr;
              owner=x#!user_id}
+        in
+        let to_original x =
+          if (x#!user_id = user_id) then
+            if (x#!l_lang_id = l_lang_id &&
+                  x#!r_lang_id = r_lang_id) then
+              Some (to_data x)
+            else None
+          else Some (to_data x)
         in
         let to_correction x =
           let () = assert(x#!correction_state = 1l
@@ -587,7 +608,11 @@ module Translation = struct
                                        (fun x ->
                                         x#!correction_state = Int32.zero)
                                        res in
-        let originals = List.map to_data originals in
+        let originals = List.fold_left (fun accum res ->
+                                        match res with
+                                        | None -> accum
+                                        | Some x -> x :: accum) []
+                                       (List.map to_original originals) in
         let corrections = List.map to_correction corrections in
         let h = Hashtbl.create (List.length originals) in
         let () = List.iter (fun x ->
@@ -604,6 +629,7 @@ module Translation = struct
         in
         let res = Hashtbl.fold (fun key value res -> value :: res) h [] in
         let () = Hashtbl.reset h in
+        (* we only keep originals of the user id having the asked language *)
         Lwt.return res)
 
     let do_delete_all_user_ids_translations dbh user_id =
@@ -625,7 +651,7 @@ module Translation = struct
                                 t.description = $string:noun$;
                                 lw in $words_in_lang$;
                                 t.l_word = lw.id >> in
-        let noun_names = Word.get_words nouns_in_lang in
+        let noun_names = Word.get_words_text_by_ids nouns_in_lang in
         lwt res = Lwt_Query.query dbh noun_names in
         Lwt.return (List.map (fun x -> x#!word) res))
 end
