@@ -18,6 +18,17 @@ open Eliom_lib
 open Eliom_content
 open Html5.D
 
+let sort_uniq f r =
+  let r = List.sort f r in
+  match r with
+  | [] -> r
+  | hd :: tl ->
+     let _, res = List.fold_left
+                    (fun (prev, res) x ->
+                     if (f x prev) == 0 then (prev, res)
+                     else (x, x :: res)) (hd, [hd]) tl in
+     List.rev res
+
 let must x =
   match x with
     | None -> assert(false)
@@ -39,7 +50,10 @@ let build_raw_select name default others =
   let h, l = list_to_select default others in
   raw_select ~a:[] ~required:(pcdata "") ~name:name h l
 
-module MakeTranslation (F: sig type t end) = struct
+module MakeTranslation (F: sig
+                            type t
+                            val to_str: t -> string
+                          end) = struct
     type data = {
         id: Int32.t;
         source: string;
@@ -50,21 +64,45 @@ module MakeTranslation (F: sig type t end) = struct
         owner: F.t;
       }
 
+    let data_to_str x =
+       Printf.sprintf
+         "owner:%s id: %ld, %s (%s) -> %s (%s)"
+         (F.to_str x.owner)
+         x.id
+         x.source
+         x.source_lang
+         x.dest
+         x.dest_lang
+
     type correction_data = {
         correction_d: data;
         corrected_id: Int32.t;
         validated: bool;
       }
 
+    let correction_data_to_str x =
+      data_to_str x.correction_d
+
     type t = {
         content: data;
         correction: correction_data option;
       }
+
+    let to_str x =
+      Printf.sprintf "content: %s, correction:%s"
+                     (data_to_str x.content)
+                     (match x.correction with
+                      |None -> ""
+                      | Some c -> correction_data_to_str c)
+
     let get_data_id x = x.id
   end
 
 module Translation = struct
-    module M = MakeTranslation(struct type t = Int32.t end)
+    module M = MakeTranslation(struct
+                                  type t = Int32.t
+                                  let to_str = Printf.sprintf "%ld"
+                                end)
     include M
     module Int32Set = Set.Make (struct type t = Int32.t
                                        let compare = Pervasives.compare
@@ -83,6 +121,7 @@ module Translation = struct
                                 Int32Set.empty
                                 flattened in
        Int32Set.elements res
+
   end
 
 module Owner = struct
@@ -94,10 +133,14 @@ module Owner = struct
       }
     let get_username t = t.username
   end
-module TranslationInModel = MakeTranslation(struct
-                                               type t = Owner.t
-                                               let compare = Pervasives.compare
-                                             end)
+
+module TranslationInModel =  MakeTranslation(
+                                 struct
+                                   type t = Owner.t
+                                   let compare = Pervasives.compare
+                                   let to_str x = x.Owner.username
+                                 end)
+
 let convert_data x owner =
   {TranslationInModel.id=x.Translation.id;
    TranslationInModel.source=x.Translation.source;

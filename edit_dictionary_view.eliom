@@ -49,6 +49,7 @@
         let (source, dest, description), id = Utils.TranslationInModel.(
             (cn data.source, cn data.dest, cn data.description),
             data.id) in
+        let source_lang, dest_lang = Utils.TranslationInModel.(data.source_lang, data.dest_lang) in
         let edit_button = Utils.create_button `ActionLittle
                                               "Aldatu"
                                               (fun () ->
@@ -63,7 +64,9 @@
                                                                     model
                                                                     id
                                                                     s
+                                                                    source_lang
                                                                     dst
+                                                                    dest_lang
                                                                     descr)) in
         let delete_button = Utils.create_button `ActionLittleRed
                                               "Kendu"
@@ -98,6 +101,15 @@
     | `Two -> [one; two @ elements; three]
     | `Three -> [one; two; three @ elements]
 
+  let replace_nth_element l elements n =
+    let one, two, three = List.nth l 0,
+                          List.nth l 1,
+                          List.nth l 2 in
+    match n with
+    | `One -> [elements; two; three]
+    | `Two -> [one; elements; three]
+    | `Three -> [one; two; elements]
+
   let append_to_fst_element l elements =
     append_to_nth_element l elements `One
 
@@ -106,6 +118,9 @@
 
   let append_to_third_element l elements =
     append_to_nth_element l elements `Three
+
+  let replace_third_element l elements =
+    replace_nth_element l elements `Three
 
   let original_ui f model translation original =
     let open Edit_dictionary_model in
@@ -197,7 +212,13 @@
                                          model
                                          original
                                          data)) in
-       append_to_third_element edition_buttons [ok; nok]
+       let open Utils.TranslationInModel in
+       let make_correction x = Html5.(div ~a:[a_style "color:red"] [pcdata x]) in
+       let third = List.nth edition_buttons 2 in
+       let third = [make_correction data.description; Html5.br ()] @ third @ [ok; nok] in
+       let res = replace_third_element edition_buttons third in
+       let res = append_to_fst_element res [make_correction data.source] in
+       append_to_snd_element res [make_correction data.dest]
 
   let correction_ui f model translation correction =
     let open Edit_dictionary_model in
@@ -208,9 +229,7 @@
     let edition_buttons = create_edition_ui f model state data translation in
     let original_username = Translation.get_username original in
     let ok = Utils.create_button `Goto
-                                 (Printf.sprintf
-                                    "Zuzenketa Ok -> %s"
-                                    original_username)
+                                 "Zuzenketa Bidali"
                                  (fun () ->
                                      Edit_dictionary_controller.(
                                        validate_correction
@@ -219,7 +238,7 @@
                                          correction)) in
     let ui = append_to_third_element edition_buttons
                                      [ok] in
-    ui
+    [Html5.pcdata original_username] :: ui
 
   let translation_ui f model translation =
     let open Edit_dictionary_model in
@@ -288,6 +307,13 @@
            dst_ui;
            [pcdata "azalpenak"]])
 
+ let create_correction_table_header src_lang dst_lang =
+   let pl = preferred_lang_to_string_declined in
+   Html5.([[pcdata "Nor"];
+           [pcdata (pl src_lang)];
+           [pcdata (pl dst_lang)];
+           [pcdata "azalpenak"]])
+
  let view_play f model =
    let div = Html5.div [] in
    let button = Utils.create_button `ActionLittle
@@ -333,11 +359,43 @@
                                                                                  dest
                                                                                  value) in
     let add_translation = [[source]; [dest]; [description; update]] in
+    let translations = get_translations model in
+    let originals, corrections = List.fold_left
+                                  (fun (originals, corrections) arg ->
+                                   let open Edit_dictionary_model in
+                                   match arg with
+                                   | `Original _ -> (arg :: originals), corrections
+                                   | `Correction x -> originals, (x, arg) :: corrections) ([], [])
+                                  translations in
+    let h = Hashtbl.create 100 in
+    let () = List.iter (fun x ->
+                        let correction, _ = x in
+                        let open Edit_dictionary_model in
+                        let open Translation.Correction in
+                        let key = Utils.TranslationInModel.(correction.data.source_lang,
+                                                            correction.data.dest_lang) in
+                        let l =
+                          if Hashtbl.mem h key then
+                            Hashtbl.find h key
+                          else []
+                        in
+                        Hashtbl.replace h key (x :: l)
+                       ) corrections
+    in
+    let corrections_table = Hashtbl.fold
+                              (fun k value accum ->
+                               let src, dst = k in
+                               let ch = create_correction_table_header src dst in
+                               let ui = List.map
+                                          (fun (_, transl) ->
+                                           translation_ui f model transl) value in
+                               (Utils.create_table ch ui) :: accum) h [] in
+    let () = Hashtbl.reset h in
     let existing = List.map (fun trans -> translation_ui f model trans)
-                            (get_translations model) in
+                            originals in
     let translations = Utils.create_table (create_table_header f model)
                                           (add_translation :: existing) in
-    under_banner @ [play_button; translations]
+    under_banner @ (play_button :: corrections_table) @ [translations]
 
  let view_content f model =
    let open Edit_dictionary_model in

@@ -579,7 +579,10 @@ module Translation = struct
                           t.l_word = lw.id;
                           t.r_word = rw.id >>
         in
+        (* the join generates duplicates *)
         lwt res = Lwt_Query.query dbh query in
+        let cmp x y = Pervasives.compare x#!id y#!id in
+        let res = Utils.sort_uniq cmp res in
         let open Utils.Translation in
         let to_data x =
           lwt l_lang = LangDb.find_lang x#!l_lang_id in
@@ -593,6 +596,7 @@ module Translation = struct
                       owner=x#!user_id})
         in
         let to_original x =
+          (* we only keep originals of the user id having the asked language *)
           if (x#!user_id = user_id) then
             if (x#!l_lang_id = l_lang_id &&
                   x#!r_lang_id = r_lang_id) then
@@ -636,7 +640,7 @@ module Translation = struct
         in
         let res = Hashtbl.fold (fun key value res -> value :: res) h [] in
         let () = Hashtbl.reset h in
-        (* we only keep originals of the user id having the asked language *)
+
         Lwt.return res)
 
     let do_delete_all_user_ids_translations dbh user_id =

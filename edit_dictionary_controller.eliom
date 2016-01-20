@@ -86,6 +86,12 @@ let update_translations model =
   let different_ids = Utils.Translation.get_distinct_owners translations in
   lwt owners = %rpc_get_users different_ids in
   let translations = Utils.convert_translations translations owners in
+  let log = String.concat
+              "\n"
+              (List.map
+                 Utils.TranslationInModel.to_str
+                 translations) in
+  let () = Utils.log log in
   let trans = List.map (Edit_dictionary_model.to_translation model)
                        translations in
   Lwt.return (Edit_dictionary_model.update_translations model trans)
@@ -127,14 +133,11 @@ let delete_in_translation_in_db model translation =
   Lwt.return (Edit_dictionary_model.delete_translation_from_model
                 model translation)
 
-let update_translation f model id source dest description =
-  let preferred_lang_src,
-      preferred_lang_dst =
-    Edit_dictionary_model.(get_preferred_lang_src model,
-                           get_preferred_lang_dst model) in
+let update_translation f model id source source_lang dest
+                       dest_lang description =
   lwt () = %rpc_update_translation (id,
-                                    preferred_lang_src,
-                                    preferred_lang_dst,
+                                    source_lang,
+                                    dest_lang,
                                     source,
                                     dest,
                                     description) in
