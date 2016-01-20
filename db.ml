@@ -582,24 +582,30 @@ module Translation = struct
         lwt res = Lwt_Query.query dbh query in
         let open Utils.Translation in
         let to_data x =
-            {id=x#!id;
-             source=x#!l_word;
-             dest=x#!r_word;
-             description=x#!descr;
-             owner=x#!user_id}
+          lwt l_lang = LangDb.find_lang x#!l_lang_id in
+          lwt r_lang = LangDb.find_lang x#!r_lang_id in
+          Lwt.return({id=x#!id;
+                      source=x#!l_word;
+                      source_lang=l_lang;
+                      dest=x#!r_word;
+                      dest_lang=r_lang;
+                      description=x#!descr;
+                      owner=x#!user_id})
         in
         let to_original x =
           if (x#!user_id = user_id) then
             if (x#!l_lang_id = l_lang_id &&
                   x#!r_lang_id = r_lang_id) then
-              Some (to_data x)
-            else None
-          else Some (to_data x)
+              lwt res = to_data x in
+              Lwt.return (Some res)
+            else Lwt.return None
+          else lwt res = to_data x in Lwt.return (Some res)
         in
         let to_correction x =
           let () = assert(x#!correction_state = 1l
                           || x#!correction_state = 2l) in
-          let data = to_data x in
+          lwt data = to_data x in
+        Lwt.return
           {correction_d=data;
            corrected_id=x#!correction_link;
            validated=x#!correction_state = 2l}
@@ -608,12 +614,13 @@ module Translation = struct
                                        (fun x ->
                                         x#!correction_state = Int32.zero)
                                        res in
+        lwt originals_o = Lwt_list.map_s to_original originals in
         let originals = List.fold_left (fun accum res ->
                                         match res with
                                         | None -> accum
                                         | Some x -> x :: accum) []
-                                       (List.map to_original originals) in
-        let corrections = List.map to_correction corrections in
+                                       originals_o in
+        lwt corrections = Lwt_list.map_s to_correction corrections in
         let h = Hashtbl.create (List.length originals) in
         let () = List.iter (fun x ->
                             let new_x = {content=x;

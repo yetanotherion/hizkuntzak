@@ -43,7 +43,9 @@ module MakeTranslation (F: sig type t end) = struct
     type data = {
         id: Int32.t;
         source: string;
+        source_lang: string;
         dest: string;
+        dest_lang: string;
         description: string;
         owner: F.t;
       }
@@ -97,11 +99,13 @@ module TranslationInModel = MakeTranslation(struct
                                                let compare = Pervasives.compare
                                              end)
 let convert_data x owner =
-    {TranslationInModel.id=x.Translation.id;
-     TranslationInModel.source=x.Translation.source;
-     TranslationInModel.dest=x.Translation.dest;
-     TranslationInModel.description=x.Translation.description;
-     TranslationInModel.owner=owner}
+  {TranslationInModel.id=x.Translation.id;
+   TranslationInModel.source=x.Translation.source;
+   TranslationInModel.source_lang=x.Translation.source_lang;
+   TranslationInModel.dest=x.Translation.dest;
+   TranslationInModel.dest_lang=x.Translation.dest_lang;
+   TranslationInModel.description=x.Translation.description;
+   TranslationInModel.owner=owner; }
 
 let convert_translations l owners =
   let h = Hashtbl.create (List.length owners) in

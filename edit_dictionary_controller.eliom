@@ -225,7 +225,9 @@ let add_translation f model source dest description =
                                  id=user_id}) in
        let content = Utils.TranslationInModel.({id;
                                                 source;
+                                                source_lang=preferred_lang_src;
                                                 dest;
+                                                dest_lang=preferred_lang_dst;
                                                 description;
                                                 owner}) in
        let correction = None in
